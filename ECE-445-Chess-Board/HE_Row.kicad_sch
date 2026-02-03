@@ -1,0 +1,3436 @@
+(kicad_sch
+	(version 20250114)
+	(generator "eeschema")
+	(generator_version "9.0")
+	(uuid "fc3d62a8-c9ee-43f3-aa7c-6546a1c190a0")
+	(paper "A4")
+	(lib_symbols
+		(symbol "Device:C"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0.254)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "C"
+				(at 0.635 2.54 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "C"
+				(at 0.635 -2.54 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 0.9652 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Unpolarized capacitor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "cap capacitor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "C_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "C_0_1"
+				(polyline
+					(pts
+						(xy -2.032 0.762) (xy 2.032 0.762)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -2.032 -0.762) (xy 2.032 -0.762)
+					)
+					(stroke
+						(width 0.508)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "C_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 2.794)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 2.794)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "Sensor_Magnetic:DRV5055A4xDBZxQ1"
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "U"
+				(at 2.54 12.7 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Value" "DRV5055A4xDBZxQ1"
+				(at 2.54 10.16 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "Automotive Ratiometric Linear Hall Effect Sensor AEC-Q100"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "SOT?23*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "DRV5055A4xDBZxQ1_1_1"
+				(rectangle
+					(start -5.08 7.62)
+					(end 5.08 -7.62)
+					(stroke
+						(width 0.254)
+						(type default)
+					)
+					(fill
+						(type background)
+					)
+				)
+				(pin power_in line
+					(at -2.54 10.16 270)
+					(length 2.54)
+					(name "VCC"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin power_in line
+					(at -2.54 -10.16 90)
+					(length 2.54)
+					(name "GND"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "3"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin output line
+					(at 7.62 0 180)
+					(length 2.54)
+					(name "OUT"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "power:+3.3V"
+			(power)
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "+3.3V"
+				(at 0 3.556 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "+3.3V_0_1"
+				(polyline
+					(pts
+						(xy -0.762 1.27) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 2.54) (xy 0.762 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "+3.3V_1_1"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+		(symbol "power:GND"
+			(power)
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -6.35 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "GND"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "GND_0_1"
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 -1.27) (xy 1.27 -1.27) (xy 0 -2.54) (xy -1.27 -1.27) (xy 0 -1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "GND_1_1"
+				(pin power_in line
+					(at 0 0 270)
+					(length 0)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
+	)
+	(junction
+		(at 100.33 26.67)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "01a3bd51-cd31-43c3-8455-e6d6a7ca2238")
+	)
+	(junction
+		(at 147.32 26.67)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "0d595317-4acd-4c8a-93f5-e07eba60419f")
+	)
+	(junction
+		(at 147.32 157.48)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "10392a6c-43c0-4fd7-b6f2-2ded4d364e93")
+	)
+	(junction
+		(at 147.32 46.99)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "2dfedfdf-37a5-4cc3-a5b6-db7840a13811")
+	)
+	(junction
+		(at 100.33 63.5)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "3d87df79-f704-4c7c-a2ef-7f95fdaa3c32")
+	)
+	(junction
+		(at 147.32 63.5)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "6f849323-0340-464a-a20e-ad7db3f232d0")
+	)
+	(junction
+		(at 100.33 137.16)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "7ae28e95-e897-4c3d-854a-9133e6f72618")
+	)
+	(junction
+		(at 100.33 120.65)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "865d36f8-7a4d-4369-a52d-a667fe8e4f5b")
+	)
+	(junction
+		(at 100.33 46.99)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "a35501a6-cb80-423f-9431-6555d35ef4b0")
+	)
+	(junction
+		(at 100.33 100.33)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "b4707f48-c973-439f-bba5-07795231335a")
+	)
+	(junction
+		(at 147.32 137.16)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "dd93b49f-4e7a-4e08-89ea-cf4b71f8a7a1")
+	)
+	(junction
+		(at 147.32 83.82)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "ec913826-bb51-4bf5-a351-921a6def6918")
+	)
+	(junction
+		(at 147.32 100.33)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "f58a51f0-ed5c-4cd0-b272-63d53d0e34fc")
+	)
+	(junction
+		(at 100.33 157.48)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "f70b486a-1f0b-4a46-ab9e-bb8cb51c8774")
+	)
+	(junction
+		(at 100.33 83.82)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "fd0474c8-01e8-4ebf-9455-65550e29d168")
+	)
+	(junction
+		(at 147.32 120.65)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "ff224cc8-49b2-4838-b3fd-1bdc97b72cb6")
+	)
+	(wire
+		(pts
+			(xy 100.33 121.92) (xy 100.33 120.65)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "04af336e-3765-42c4-899e-8e4511351294")
+	)
+	(wire
+		(pts
+			(xy 100.33 48.26) (xy 100.33 46.99)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "0759088d-4268-4c6f-b121-105b13740f57")
+	)
+	(wire
+		(pts
+			(xy 147.32 40.64) (xy 147.32 46.99)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "118c5929-bba8-4669-86b9-172db54bcf1f")
+	)
+	(wire
+		(pts
+			(xy 100.33 100.33) (xy 100.33 106.68)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "13b1693f-b38b-4ba0-8c25-678057ba7cfb")
+	)
+	(wire
+		(pts
+			(xy 100.33 62.23) (xy 100.33 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "14ec7d4b-10fa-494a-ae69-9cf6f11d9dd6")
+	)
+	(wire
+		(pts
+			(xy 100.33 137.16) (xy 100.33 143.51)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "180406be-bdba-4d8c-b6e6-f3e3a245348a")
+	)
+	(wire
+		(pts
+			(xy 161.29 137.16) (xy 147.32 137.16)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1d4b7ff6-6e5c-4874-a501-1db4feffdf34")
+	)
+	(wire
+		(pts
+			(xy 147.32 85.09) (xy 147.32 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "1d6880e7-d75d-4d4d-b657-de377c536acd")
+	)
+	(wire
+		(pts
+			(xy 100.33 26.67) (xy 100.33 33.02)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "243a84af-edff-43c5-8d96-9a8963c91576")
+	)
+	(wire
+		(pts
+			(xy 147.32 151.13) (xy 147.32 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "24ad5579-ac52-4070-9556-bae577965e42")
+	)
+	(wire
+		(pts
+			(xy 171.45 147.32) (xy 173.99 147.32)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "24b082cf-39c0-4895-b3b6-4fcaabd93eb8")
+	)
+	(wire
+		(pts
+			(xy 147.32 62.23) (xy 147.32 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2fade8b0-ebe5-4307-8222-b57d2a3157bb")
+	)
+	(wire
+		(pts
+			(xy 147.32 114.3) (xy 147.32 120.65)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3a4919db-d149-4b72-be0c-478bb5abf93d")
+	)
+	(wire
+		(pts
+			(xy 171.45 36.83) (xy 173.99 36.83)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3aeffc35-8f8e-4cc8-adf5-7c7166e511bc")
+	)
+	(wire
+		(pts
+			(xy 100.33 114.3) (xy 100.33 120.65)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3de5bc50-2038-4728-bce3-2c9973e653fe")
+	)
+	(wire
+		(pts
+			(xy 147.32 48.26) (xy 147.32 46.99)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "44fad175-4f65-43e5-9778-bbfa7c17c3ab")
+	)
+	(wire
+		(pts
+			(xy 161.29 100.33) (xy 147.32 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "45265862-8224-4f59-a15f-648dad8979e1")
+	)
+	(wire
+		(pts
+			(xy 124.46 110.49) (xy 127 110.49)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "46c7aa54-0146-43e6-9898-2a9639413278")
+	)
+	(wire
+		(pts
+			(xy 100.33 77.47) (xy 100.33 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "494e2db5-ec10-4606-b22c-7971c4b874e3")
+	)
+	(wire
+		(pts
+			(xy 171.45 73.66) (xy 173.99 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "54389d19-acd4-4558-8dd8-0ea52ceed42d")
+	)
+	(wire
+		(pts
+			(xy 171.45 110.49) (xy 173.99 110.49)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "55b2c841-8285-4056-a76c-77aacb6641b8")
+	)
+	(wire
+		(pts
+			(xy 100.33 135.89) (xy 100.33 137.16)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "58db19b3-d4f2-4afd-ab7c-5225249b076d")
+	)
+	(wire
+		(pts
+			(xy 147.32 25.4) (xy 147.32 26.67)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "62bbb06a-2842-4d8e-b0b9-62dc0d0defec")
+	)
+	(wire
+		(pts
+			(xy 147.32 99.06) (xy 147.32 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "63c01c10-8de3-4c2a-8b71-ae4592945ea9")
+	)
+	(wire
+		(pts
+			(xy 161.29 63.5) (xy 147.32 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "67026c47-6cf3-4fd2-804f-4375669a161b")
+	)
+	(wire
+		(pts
+			(xy 147.32 83.82) (xy 161.29 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "6b26c25a-3e88-4873-a600-ddc633927645")
+	)
+	(wire
+		(pts
+			(xy 100.33 151.13) (xy 100.33 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7106d4d2-2796-425d-917f-55b7fe96997c")
+	)
+	(wire
+		(pts
+			(xy 124.46 73.66) (xy 127 73.66)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "715f9c43-be3e-4db4-8d7c-d990aff7464b")
+	)
+	(wire
+		(pts
+			(xy 147.32 120.65) (xy 161.29 120.65)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7c353a78-4a33-4c0c-927d-5f403cb124a3")
+	)
+	(wire
+		(pts
+			(xy 147.32 135.89) (xy 147.32 137.16)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7f07e192-380e-45ee-9ea4-2dddb28e2500")
+	)
+	(wire
+		(pts
+			(xy 147.32 158.75) (xy 147.32 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "7fa7d833-87a4-4c14-b1ba-c43f0a09dc4b")
+	)
+	(wire
+		(pts
+			(xy 147.32 121.92) (xy 147.32 120.65)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "82a80e9e-e6d2-4ccd-805b-a01b9a7c19ad")
+	)
+	(wire
+		(pts
+			(xy 114.3 137.16) (xy 100.33 137.16)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8575c149-ec3e-4f74-86d9-d093b4959d42")
+	)
+	(wire
+		(pts
+			(xy 100.33 158.75) (xy 100.33 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "86671025-cb07-4a21-a962-c4aff3c66f42")
+	)
+	(wire
+		(pts
+			(xy 100.33 120.65) (xy 114.3 120.65)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "87c13371-ba04-45e3-a464-8258a128f2a2")
+	)
+	(wire
+		(pts
+			(xy 147.32 77.47) (xy 147.32 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "8df65c50-8013-4fc5-b14b-2e233c33caa2")
+	)
+	(wire
+		(pts
+			(xy 114.3 26.67) (xy 100.33 26.67)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "92affb9c-9a3a-45ed-b05e-0cd7e796001d")
+	)
+	(wire
+		(pts
+			(xy 147.32 137.16) (xy 147.32 143.51)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "93200ed8-30d6-4d29-b031-f24926836a18")
+	)
+	(wire
+		(pts
+			(xy 100.33 157.48) (xy 114.3 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "93dc82e6-b69b-48a0-9038-21cdb5cec316")
+	)
+	(wire
+		(pts
+			(xy 147.32 63.5) (xy 147.32 69.85)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9a396d10-2436-4615-bca3-c20f681137d7")
+	)
+	(wire
+		(pts
+			(xy 147.32 46.99) (xy 161.29 46.99)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "9df4f3ab-4c8e-42a0-b27c-7a748753481f")
+	)
+	(wire
+		(pts
+			(xy 147.32 157.48) (xy 161.29 157.48)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a47a8402-7afb-449a-a2e2-da3152c433f3")
+	)
+	(wire
+		(pts
+			(xy 100.33 40.64) (xy 100.33 46.99)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ac4e1c15-ac77-4e19-a8ca-88bf75f24f65")
+	)
+	(wire
+		(pts
+			(xy 161.29 26.67) (xy 147.32 26.67)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "af164e30-b346-4ecc-bbe0-4b4fafb152bb")
+	)
+	(wire
+		(pts
+			(xy 147.32 26.67) (xy 147.32 33.02)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "b412961b-9e7a-42ef-8e73-7b3550c6c801")
+	)
+	(wire
+		(pts
+			(xy 124.46 147.32) (xy 127 147.32)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "bd8fdaf8-69db-469f-af00-f1973bae2bb1")
+	)
+	(wire
+		(pts
+			(xy 100.33 99.06) (xy 100.33 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c6c370aa-8f5c-4a72-8604-2613619fd17b")
+	)
+	(wire
+		(pts
+			(xy 147.32 100.33) (xy 147.32 106.68)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "c73a5125-07d2-4567-99d6-4356e5b8ed2f")
+	)
+	(wire
+		(pts
+			(xy 100.33 46.99) (xy 114.3 46.99)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d13c8691-6ffc-4c19-9d1f-b89f8df0317e")
+	)
+	(wire
+		(pts
+			(xy 124.46 36.83) (xy 127 36.83)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "d4a63bb1-19c6-4831-8829-2120982fb133")
+	)
+	(wire
+		(pts
+			(xy 100.33 85.09) (xy 100.33 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "ded37fe2-6a56-4e3d-bdc7-9ca714f6db9b")
+	)
+	(wire
+		(pts
+			(xy 100.33 25.4) (xy 100.33 26.67)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "dedf6be7-0a42-4caf-879b-083048a6aa9f")
+	)
+	(wire
+		(pts
+			(xy 114.3 100.33) (xy 100.33 100.33)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e3e9d1d8-c421-4d22-9f83-efa7ffdc6b52")
+	)
+	(wire
+		(pts
+			(xy 100.33 83.82) (xy 114.3 83.82)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "e5f78bb7-3866-4078-b97e-fee1d4efabbb")
+	)
+	(wire
+		(pts
+			(xy 100.33 63.5) (xy 100.33 69.85)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f4e9d59c-0078-4788-8ce6-59805c36fdab")
+	)
+	(wire
+		(pts
+			(xy 114.3 63.5) (xy 100.33 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f7f9a987-a5f5-47f0-8c47-e54e083e9df4")
+	)
+	(hierarchical_label "Hall_Out_6"
+		(shape bidirectional)
+		(at 173.99 110.49 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "1335f517-3e37-46de-8ee4-58c9465b4293")
+	)
+	(hierarchical_label "Hall_Out_1"
+		(shape bidirectional)
+		(at 127 73.66 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "3f0c0b79-0bd9-40c1-b92c-9106933b3721")
+	)
+	(hierarchical_label "Hall_Out_3"
+		(shape bidirectional)
+		(at 127 147.32 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "7a483a19-b5d8-467b-912c-57aa5dd74db3")
+	)
+	(hierarchical_label "Hall_Out_2"
+		(shape bidirectional)
+		(at 127 110.49 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "91d81169-a8cc-4db1-ad52-c969c51a4eb3")
+	)
+	(hierarchical_label "Hall_Out_5"
+		(shape bidirectional)
+		(at 173.99 73.66 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "b09f83ff-8554-461c-8b35-c2d10ed57ce4")
+	)
+	(hierarchical_label "Hall_Out_7"
+		(shape bidirectional)
+		(at 173.99 147.32 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "cc21b627-af2e-40a0-b5dc-0b9748daed89")
+	)
+	(hierarchical_label "Hall_Out_0"
+		(shape bidirectional)
+		(at 127 36.83 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "e6b3330d-002b-46a9-999e-9846b87ce0e3")
+	)
+	(hierarchical_label "Hall_Out_4"
+		(shape bidirectional)
+		(at 173.99 36.83 0)
+		(effects
+			(font
+				(size 1.27 1.27)
+			)
+			(justify left)
+		)
+		(uuid "f96cf8cb-150f-4b77-afe8-3566c44f1e4f")
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 147.32 158.75 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "0b56fae0-0633-4d73-bf2e-5683bff3b5a6")
+		(property "Reference" "#PWR033"
+			(at 147.32 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 147.32 162.814 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 158.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 147.32 158.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 147.32 158.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "ee4e4acf-ce21-4782-8f23-64dbad58fec1")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR033")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 100.33 121.92 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "0d5f6d79-8048-4a69-8804-3f0e94ccf886")
+		(property "Reference" "#PWR023"
+			(at 100.33 128.27 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 100.33 125.984 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 100.33 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "78b7a154-6914-4344-8e18-28da318038fd")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR023")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sensor_Magnetic:DRV5055A4xDBZxQ1")
+		(at 116.84 147.32 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "11f31add-bcf0-4038-94fb-c9a744fec1bb")
+		(property "Reference" "U12"
+			(at 119.38 136.906 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "DRV5055A4xDBZxQ1"
+			(at 135.382 138.684 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 116.84 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+			(at 116.84 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+			(at 116.84 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "a4e483e5-48ba-4cb6-afff-37094c6c2343")
+		)
+		(pin "3"
+			(uuid "de8c658e-603e-4833-b511-cb18ca601902")
+		)
+		(pin "2"
+			(uuid "3afd9558-13a6-4969-a4a6-1483043ca612")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "U12")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sensor_Magnetic:DRV5055A4xDBZxQ1")
+		(at 116.84 73.66 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "1eca41d1-7567-45fe-a2d0-8043018f23b9")
+		(property "Reference" "U9"
+			(at 119.38 63.246 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "DRV5055A4xDBZxQ1"
+			(at 135.382 65.024 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 116.84 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+			(at 116.84 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+			(at 116.84 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "d97c74a6-7d72-4600-a4b2-b1e15246f698")
+		)
+		(pin "3"
+			(uuid "baf35a3a-5ee9-4805-949d-3d34bc1ba091")
+		)
+		(pin "2"
+			(uuid "19b4a018-ce13-42bc-9fa2-b34be9316591")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "U9")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 147.32 121.92 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "20eabaa0-08f2-4b96-9253-c41884b69fe4")
+		(property "Reference" "#PWR031"
+			(at 147.32 128.27 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 147.32 125.984 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 147.32 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 147.32 121.92 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "4b4ff58b-e37f-4fab-aaa7-02e5b9368bc5")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR031")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 147.32 36.83 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "2e09ff09-03b6-4257-9968-7984a3ecdeeb")
+		(property "Reference" "C13"
+			(at 151.13 35.5599 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0.01uF"
+			(at 151.13 38.0999 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 148.2852 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 147.32 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 147.32 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "39a514f9-b077-41eb-a65c-f9b49395c967")
+		)
+		(pin "1"
+			(uuid "e2f95ca9-d082-435f-ae9d-0282258a617a")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "C13")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 100.33 36.83 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "315e27e5-0596-426f-8ef2-da978e20b5f0")
+		(property "Reference" "C1"
+			(at 104.14 35.5599 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0.01uF"
+			(at 104.14 38.0999 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 101.2952 40.64 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 100.33 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "c09ac081-0f17-4dff-b3fc-5b2e590e542c")
+		)
+		(pin "1"
+			(uuid "a66d38c9-6e22-4d10-a8d2-7582e253190a")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "C1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 100.33 158.75 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "47340f3d-9359-46ae-950b-8b3ab5257da8")
+		(property "Reference" "#PWR025"
+			(at 100.33 165.1 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 100.33 162.814 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 158.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 158.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 100.33 158.75 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "30b71c52-740a-4cf8-9688-33b6e1717611")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR025")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 147.32 73.66 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "47d321d6-81da-4384-8f8a-031fc032febe")
+		(property "Reference" "C14"
+			(at 151.13 72.3899 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0.01uF"
+			(at 151.13 74.9299 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 148.2852 77.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 147.32 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 147.32 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "e30c1254-ae21-4c53-9c16-be85eeb5fbee")
+		)
+		(pin "1"
+			(uuid "768efafe-ccd3-4533-9986-b21dd9436dbd")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "C14")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 147.32 110.49 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "54cee863-ad94-4894-ae67-485874d281e2")
+		(property "Reference" "C15"
+			(at 151.13 109.2199 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0.01uF"
+			(at 151.13 111.7599 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 148.2852 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 147.32 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 147.32 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "a546e15c-73d7-46ab-b603-921c072a51bf")
+		)
+		(pin "1"
+			(uuid "83a8d0b5-92cb-4ca4-b415-5b6732af5d4b")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "C15")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sensor_Magnetic:DRV5055A4xDBZxQ1")
+		(at 116.84 110.49 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "614b530c-4bf7-4413-a5e3-4b1ecdb02618")
+		(property "Reference" "U11"
+			(at 119.38 100.076 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "DRV5055A4xDBZxQ1"
+			(at 135.382 101.854 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 116.84 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+			(at 116.84 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+			(at 116.84 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "a863fa43-710a-4bbc-b30b-d8dee5e3c63b")
+		)
+		(pin "3"
+			(uuid "750ae697-684f-433e-9814-8cf58d03dffc")
+		)
+		(pin "2"
+			(uuid "6013fbd2-7039-4c46-b076-433473cc5ac4")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "U11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3.3V")
+		(at 147.32 99.06 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "6ac42277-60d4-4a82-91aa-c139f2fdeeaf")
+		(property "Reference" "#PWR030"
+			(at 147.32 102.87 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3V"
+			(at 147.32 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 147.32 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+			(at 147.32 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "0696deea-8cfb-4a78-a710-510cd1854bf5")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR030")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sensor_Magnetic:DRV5055A4xDBZxQ1")
+		(at 163.83 36.83 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "7574dc39-1049-416f-89a8-8a79bfcbd0f0")
+		(property "Reference" "U13"
+			(at 166.37 26.416 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "DRV5055A4xDBZxQ1"
+			(at 182.372 28.194 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 163.83 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+			(at 163.83 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+			(at 163.83 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "bd5c30e0-6b2e-4f88-9f04-54d02c3edf8a")
+		)
+		(pin "3"
+			(uuid "8bdf9208-d79a-4921-a6a2-16f81d525ebf")
+		)
+		(pin "2"
+			(uuid "00c8afae-4125-4720-8e6d-0bba8ad25f1c")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "U13")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sensor_Magnetic:DRV5055A4xDBZxQ1")
+		(at 163.83 73.66 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "7b9f18e0-95d7-4849-97ab-763a9267f926")
+		(property "Reference" "U14"
+			(at 166.37 63.246 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "DRV5055A4xDBZxQ1"
+			(at 182.372 65.024 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 163.83 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+			(at 163.83 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+			(at 163.83 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "c2ef1e31-82c3-47f2-bc1a-694c7336a6b2")
+		)
+		(pin "3"
+			(uuid "2af19f07-16d4-4b39-934d-2ff01f0f8694")
+		)
+		(pin "2"
+			(uuid "c1566b89-b12b-43f0-a1f0-8aabe91422db")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "U14")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sensor_Magnetic:DRV5055A4xDBZxQ1")
+		(at 163.83 110.49 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "859b79bc-ec6b-4ba5-be17-f7a26bcc7aed")
+		(property "Reference" "U15"
+			(at 166.37 100.076 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "DRV5055A4xDBZxQ1"
+			(at 182.372 101.854 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 163.83 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+			(at 163.83 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+			(at 163.83 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "2dce3dbb-9ba2-4394-829e-f34f31282904")
+		)
+		(pin "3"
+			(uuid "d7750f20-7d2b-47b6-8224-33c410939d21")
+		)
+		(pin "2"
+			(uuid "3d613bf0-d359-43ac-834f-0d5db9518849")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "U15")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 100.33 73.66 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "8c09b62e-bba7-4dd8-b4be-0084366bb671")
+		(property "Reference" "C10"
+			(at 104.14 72.3899 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0.01uF"
+			(at 104.14 74.9299 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 101.2952 77.47 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 100.33 73.66 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "2381154a-8bbb-4e25-8922-a1dc72a8a33d")
+		)
+		(pin "1"
+			(uuid "c48428e4-afe1-419b-a756-85e42ff8a7aa")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "C10")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 100.33 147.32 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "9524ef92-38da-4506-8ae0-1f3b01e1f4c6")
+		(property "Reference" "C12"
+			(at 104.14 146.0499 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0.01uF"
+			(at 104.14 148.5899 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 101.2952 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 100.33 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "74924f58-b9be-480b-8000-ba4765846c58")
+		)
+		(pin "1"
+			(uuid "93c7fd56-445e-430d-b088-34e5b348f1dc")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "C12")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3.3V")
+		(at 147.32 25.4 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "95c05b84-5c3d-4452-847c-dfba9a087d04")
+		(property "Reference" "#PWR026"
+			(at 147.32 29.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3V"
+			(at 147.32 20.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 147.32 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+			(at 147.32 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "af756976-a8de-4f95-8a66-a4182ac5bfc9")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR026")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 147.32 85.09 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "aacef101-8522-4cea-a4dd-7e8ac5458fbe")
+		(property "Reference" "#PWR029"
+			(at 147.32 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 147.32 89.154 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 147.32 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 147.32 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "1b843759-a2a1-48fe-804d-f85920b19135")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR029")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3.3V")
+		(at 100.33 25.4 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "b7b74ba9-17e7-4971-a194-658cad62112d")
+		(property "Reference" "#PWR01"
+			(at 100.33 29.21 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3V"
+			(at 100.33 20.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+			(at 100.33 25.4 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "5566c45c-b3e3-46ab-b232-2d17a2eae771")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR01")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3.3V")
+		(at 100.33 62.23 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "c0d7220a-f70b-491c-beb7-48a9cda1fb5f")
+		(property "Reference" "#PWR020"
+			(at 100.33 66.04 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3V"
+			(at 100.33 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 62.23 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 62.23 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+			(at 100.33 62.23 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "ad8aadd4-b407-4e7c-a2b5-e3d066213e0f")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR020")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 100.33 48.26 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c32379d6-65e7-4a9a-b693-39396303892c")
+		(property "Reference" "#PWR02"
+			(at 100.33 54.61 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 100.33 52.324 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 100.33 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "af2d6e58-7bc9-4785-a480-6338028c68bd")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR02")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 100.33 110.49 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "c7812636-2e58-49f9-880f-9079b51fa582")
+		(property "Reference" "C11"
+			(at 104.14 109.2199 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0.01uF"
+			(at 104.14 111.7599 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 101.2952 114.3 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 100.33 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 100.33 110.49 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "a5a96f4d-443c-487f-8f23-6937346aef34")
+		)
+		(pin "1"
+			(uuid "264495b6-8514-48c1-a313-39507e49ec22")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "C11")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 147.32 48.26 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "c9ee44bb-b5f0-4420-8aaa-1cbf5bf073c0")
+		(property "Reference" "#PWR027"
+			(at 147.32 54.61 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 147.32 52.324 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 147.32 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 147.32 48.26 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "1869571e-4a1f-45d2-ae3b-bfc30210f501")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR027")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3.3V")
+		(at 147.32 135.89 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "dce4fd5c-59e6-4946-b793-b8c6d3320314")
+		(property "Reference" "#PWR032"
+			(at 147.32 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3V"
+			(at 147.32 130.81 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 147.32 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+			(at 147.32 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "4a2b537f-4d27-4b4b-96ea-3697cf80d677")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR032")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:C")
+		(at 147.32 147.32 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "e088f055-19dc-46ee-835c-2c6676c05b8a")
+		(property "Reference" "C16"
+			(at 151.13 146.0499 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Value" "0.01uF"
+			(at 151.13 148.5899 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 148.2852 151.13 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 147.32 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Unpolarized capacitor"
+			(at 147.32 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "072f22c5-3f53-412e-bbd8-1113d1491f5c")
+		)
+		(pin "1"
+			(uuid "248cc9b9-9c39-4c7a-86f3-377b1d65713e")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "C16")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3.3V")
+		(at 100.33 135.89 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "e21d78e2-65c1-4b67-80f9-55b195dc722c")
+		(property "Reference" "#PWR024"
+			(at 100.33 139.7 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3V"
+			(at 100.33 130.81 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+			(at 100.33 135.89 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "542b99df-f141-49f0-a268-9d7ca43cd0f5")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR024")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3.3V")
+		(at 100.33 99.06 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "e245a2aa-05f2-4b88-a3a6-fe7a37875bee")
+		(property "Reference" "#PWR022"
+			(at 100.33 102.87 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3V"
+			(at 100.33 93.98 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+			(at 100.33 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "efca7260-f4d3-4969-bc74-33f7f5670219")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR022")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:GND")
+		(at 100.33 85.09 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "e340555f-5d15-478a-89a3-22bdd4b4bbfe")
+		(property "Reference" "#PWR021"
+			(at 100.33 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "GND"
+			(at 100.33 89.154 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 100.33 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 100.33 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"GND\" , ground"
+			(at 100.33 85.09 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "89d4dc87-c99d-4945-bb65-5f558a84cd45")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR021")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sensor_Magnetic:DRV5055A4xDBZxQ1")
+		(at 163.83 147.32 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "f6c3275b-b80b-4d0a-be49-362016a9704d")
+		(property "Reference" "U16"
+			(at 166.37 136.906 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "DRV5055A4xDBZxQ1"
+			(at 182.372 138.684 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 163.83 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+			(at 163.83 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+			(at 163.83 147.32 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "18918289-7dfd-473f-9590-02d51b64e3bc")
+		)
+		(pin "3"
+			(uuid "42911827-5ec0-4ea9-98bd-78fe60d14b69")
+		)
+		(pin "2"
+			(uuid "d1658da1-b4a1-4c44-adc5-31719050a07e")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "U16")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Sensor_Magnetic:DRV5055A4xDBZxQ1")
+		(at 116.84 36.83 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "f7fda4af-62f5-45f6-a998-5047a9b7f5e5")
+		(property "Reference" "U1"
+			(at 119.38 26.416 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Value" "DRV5055A4xDBZxQ1"
+			(at 135.382 28.194 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify right)
+			)
+		)
+		(property "Footprint" "Package_TO_SOT_SMD:SOT-23"
+			(at 116.84 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "https://www.ti.com/lit/ds/symlink/drv5055-q1.pdf"
+			(at 116.84 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "12.5 mV/mT,±169-mT, 20-kHz, 3.3/5V, SOT-23"
+			(at 116.84 36.83 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "26e6e3ad-a812-4343-8795-54a61415ee0d")
+		)
+		(pin "3"
+			(uuid "b344b5cc-435e-4083-b8de-40477cc9b02e")
+		)
+		(pin "2"
+			(uuid "fa794324-ee00-49ac-8125-691499e10d21")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "U1")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3.3V")
+		(at 147.32 62.23 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "fea940d9-f119-403f-8536-413b39910f7b")
+		(property "Reference" "#PWR028"
+			(at 147.32 66.04 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3.3V"
+			(at 147.32 57.15 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 147.32 62.23 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 147.32 62.23 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3.3V\""
+			(at 147.32 62.23 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "4a6c8195-05f7-499f-a28a-fe7bbc55fe4b")
+		)
+		(instances
+			(project "ECE-445-Chess-Board"
+				(path "/7211742c-a67f-4955-9f8b-c5c6ecfe8b63/bb2f5d89-9acd-49c1-bd96-cac0c53823e9/b6839e3a-1256-49bb-b977-923a2b3c1dc1"
+					(reference "#PWR028")
+					(unit 1)
+				)
+			)
+		)
+	)
+)
