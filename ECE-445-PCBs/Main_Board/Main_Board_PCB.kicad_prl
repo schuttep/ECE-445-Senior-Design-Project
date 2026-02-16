@@ -59,7 +59,7 @@
     "ssh_key": ""
   },
   "meta": {
-    "filename": "ECE-445-Chess-Board.kicad_prl",
+    "filename": "Main_Board_PCB.kicad_prl",
     "version": 5
   },
   "net_inspector_panel": {

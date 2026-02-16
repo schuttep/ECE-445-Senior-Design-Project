@@ -1,4 +1,4 @@
-27101574885684739
+27110430931206634
 Audio_Module
 Reverb_BTDR-1H
 Digital Reverberation Unit, http://www.belton.co.kr/inc/downfile.php?seq=17&file=pdf (footprint from http://www.uk-electronic.de/PDF/BTDR-1.pdf)
@@ -7070,6 +7070,13 @@ RC
 4
 3
 Connector_Amphenol
+AMPHENOL_67997-410HLF
+
+
+0
+10
+10
+Connector_Amphenol
 Amphenol_M8S-03PMMR-SF8001
 M8 Male connector for panel, 90° PCB mount (https://www.amphenolltw.com/2012download/2D%20PDF/03_M%20Series%20Sensor%20Connectors/M8S-XXPMMR-SF8001.pdf)
 three-pin M8
@@ -13278,6 +13285,13 @@ connector Harting har-flexicon horizontal
 0
 14
 13
+Connector_Harwin
+HARWIN_M20-9990246
+
+
+0
+2
+2
 Connector_Harwin
 Harwin_Gecko-G125-FVX0605L0X_2x03_P1.25mm_Vertical
 Harwin Gecko Connector, 6 pins, dual row female, vertical entry, PN:G125-FVX0605L0X, https://content.harwin.com/m/60a18b02a2a99a14/original/DRG-00168-Technical-Drawing-Datasheet-G125-FVXXX05L0P-pdf.pdf
@@ -53746,6 +53760,13 @@ USB 3.0 Micro B SMD right angle
 16
 11
 Connector_USB
+USB4215-03-A
+
+USB4215-03-A 
+0
+12
+12
+Connector_USB
 USB_A_CNCTech_1001-011-01101_Horizontal
 USB type A Plug, Horizontal, http://cnctech.us/pdfs/1001-011-01101.pdf
 USB-A
@@ -83789,6 +83810,13 @@ TLA2528IRTER
 0
 17
 17
+Package_DFN_QFN
+WQFN16_RTE_TEX-M
+
+ADS7128IRTER 
+0
+17
+17
 Package_DIP
 CERDIP-8_W7.62mm_SideBrazed
 8-lead through-hole mounted CERDIP, JEDEC MS-015-AA package, row spacing 7.62mm (300 mils), SideBrazed, https://www.jedec.org/system/files/docs/Ms-015a.pdf
@@ -100358,6 +100386,13 @@ Logo WEEE
 0
 0
 0
+TerminalBlock
+OSTVN08A150
+
+OSTVN08A150 
+0
+8
+8
 TerminalBlock
 TerminalBlock_MaiXu_MX126-5.0-02P_1x02_P5.00mm
 terminal block MaiXu MX126-5.0-02P, 2 pins, pitch 5mm, size 10.5x7.8mm, drill diameter 1.3mm, pad diameter 2.8mm, https://www.lcsc.com/datasheet/lcsc_datasheet_2309150913_MAX-MX126-5-0-03P-GN01-Cu-S-A_C5188435.pdf, script-generated using https://gitlab.com/kicad/libraries/kicad-footprint-generator/-/tree/master/scripts/TerminalBlock_MaiXu
