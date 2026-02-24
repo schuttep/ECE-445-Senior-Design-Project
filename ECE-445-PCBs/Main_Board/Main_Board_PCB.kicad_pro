@@ -37,9 +37,9 @@
         "other_text_thickness": 0.15,
         "other_text_upright": false,
         "pads": {
-          "drill": 0.8,
-          "height": 1.27,
-          "width": 2.54
+          "drill": 1.1,
+          "height": 1.65,
+          "width": 1.65
         },
         "silk_line_width": 0.1,
         "silk_text_italic": false,
@@ -48,7 +48,7 @@
         "silk_text_thickness": 0.1,
         "silk_text_upright": false,
         "zones": {
-          "min_clearance": 0.5
+          "min_clearance": 0.0
         }
       },
       "diff_pair_dimensions": [],
@@ -615,36 +615,40 @@
       "Root"
     ],
     [
-      "ef19b4ac-23d6-43fb-a39a-f5ee975d9c23",
+      "331578d0-4883-44d5-96c6-44e3ef6e3ea8",
       "Hall_Effect_Acquisition"
     ],
     [
-      "8d1336ab-74c2-4480-a0eb-65a0434fc453",
+      "34ac870e-3d29-44db-b45d-4ca949bf1541",
       "Hall_Effect_Acquisition1"
     ],
     [
-      "cae41b01-f03e-442b-8105-cf6e3b0dc9fd",
+      "6204eccb-3424-4260-aeef-b69a8ccb7b2b",
       "Hall_Effect_Acquisition2"
     ],
     [
-      "b788824f-a03d-41e0-a7ff-fade2cb17289",
+      "9d466cdc-a956-45d3-a849-5a70a9647136",
       "Hall_Effect_Acquisition3"
     ],
     [
-      "3f256f4f-c7a1-45bb-8b7d-f4e05d777a7a",
+      "14eca385-e144-4233-a0b8-a6b37cf4ba8d",
       "Hall_Effect_Acquisition4"
     ],
     [
-      "369ec97e-a1ed-4785-99d9-fd372dfc81ae",
+      "84055d3e-52ff-4d41-a471-0e8476cb9e8f",
       "Hall_Effect_Acquisition5"
     ],
     [
-      "7539272e-4d63-41ed-9a83-33a23e13af25",
+      "d696784b-41f0-43cc-893d-f7467e30c8dc",
       "Hall_Effect_Acquisition6"
     ],
     [
-      "0bb9c6ba-a1dd-438f-aaf3-1e1ecdf2f4d1",
+      "06145d17-a450-47d5-8d35-f56b7018e5af",
       "Hall_Effect_Acquisition7"
+    ],
+    [
+      "e2108b41-efd8-41fa-ab27-13b8205b6a5c",
+      "ADC_Group"
     ]
   ],
   "text_variables": {}
