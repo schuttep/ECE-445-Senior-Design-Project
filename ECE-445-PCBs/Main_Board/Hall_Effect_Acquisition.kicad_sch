@@ -1127,6 +1127,131 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "power:+3V3"
+			(power)
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0)
+				(hide yes)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "#PWR"
+				(at 0 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Value" "+3V3"
+				(at 0 3.556 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+				)
+			)
+			(property "Footprint" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" ""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Power symbol creates a global label with name \"+3V3\""
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "global power"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "+3V3_0_1"
+				(polyline
+					(pts
+						(xy -0.762 1.27) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 2.54) (xy 0.762 1.27)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy 0 0) (xy 0 2.54)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+			)
+			(symbol "+3V3_1_1"
+				(pin power_in line
+					(at 0 0 90)
+					(length 0)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "power:GND"
 			(power)
 			(pin_numbers
@@ -1617,7 +1742,7 @@
 	)
 	(wire
 		(pts
-			(xy 205.74 106.68) (xy 199.39 106.68)
+			(xy 208.28 106.68) (xy 199.39 106.68)
 		)
 		(stroke
 			(width 0)
@@ -1627,7 +1752,7 @@
 	)
 	(wire
 		(pts
-			(xy 53.34 104.14) (xy 55.88 104.14)
+			(xy 39.37 104.14) (xy 55.88 104.14)
 		)
 		(stroke
 			(width 0)
@@ -1664,16 +1789,6 @@
 			(type default)
 		)
 		(uuid "9df2fc95-c3dc-4748-b8e5-757ddf54edf5")
-	)
-	(wire
-		(pts
-			(xy 213.36 91.44) (xy 214.63 91.44)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "ae31442b-6f3a-46e9-9e50-294daaa0d453")
 	)
 	(wire
 		(pts
@@ -1747,7 +1862,7 @@
 	)
 	(wire
 		(pts
-			(xy 104.14 104.14) (xy 106.68 104.14)
+			(xy 102.87 104.14) (xy 106.68 104.14)
 		)
 		(stroke
 			(width 0)
@@ -4107,16 +4222,6 @@
 		)
 		(uuid "1e205c2f-c773-4555-967f-d502b716c577")
 	)
-	(label "3V3"
-		(at 104.14 104.14 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "34c29538-ec47-4dc0-a027-34a361899ea1")
-	)
 	(label "HE_Sensor_1"
 		(at 194.31 91.44 0)
 		(effects
@@ -4136,16 +4241,6 @@
 			(justify left bottom)
 		)
 		(uuid "3dcc9b73-10e5-452a-8c07-dda3e19d614e")
-	)
-	(label "3V3"
-		(at 214.63 91.44 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "3df956c4-1256-48f4-9580-99419e82d21f")
 	)
 	(label "HE_Sensor_3"
 		(at 118.11 91.44 180)
@@ -4237,16 +4332,6 @@
 		)
 		(uuid "cdff0619-f375-44ce-97e4-ba0a53a56628")
 	)
-	(label "3V3"
-		(at 205.74 106.68 0)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify left bottom)
-		)
-		(uuid "cfae3ffa-75ef-4b84-9d2d-6256d7505b4b")
-	)
 	(label "HE_Sensor_6"
 		(at 54.61 101.6 180)
 		(effects
@@ -4256,16 +4341,6 @@
 			(justify right bottom)
 		)
 		(uuid "d441a7f0-2d94-4bf9-a342-243be34392bd")
-	)
-	(label "3V3"
-		(at 53.34 104.14 180)
-		(effects
-			(font
-				(size 1.27 1.27)
-			)
-			(justify right bottom)
-		)
-		(uuid "e00ef13c-49d7-4d17-909d-d13c4ebc93f1")
 	)
 	(label "HE_Sensor_7"
 		(at 74.93 101.6 0)
@@ -4760,6 +4835,100 @@
 		)
 	)
 	(symbol
+		(lib_id "power:+3V3")
+		(at 39.37 104.14 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "6fc420dc-dfc7-400d-834a-a289ae9bd85f")
+		(property "Reference" "#PWR057"
+			(at 39.37 107.95 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 39.37 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 39.37 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 39.37 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 39.37 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "10e5d2db-8ec9-4eac-9394-fa5dc09b8f1b")
+		)
+		(instances
+			(project "Main_Board_PCB"
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/06145d17-a450-47d5-8d35-f56b7018e5af"
+					(reference "#PWR064")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/14eca385-e144-4233-a0b8-a6b37cf4ba8d"
+					(reference "#PWR061")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/331578d0-4883-44d5-96c6-44e3ef6e3ea8"
+					(reference "#PWR057")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/34ac870e-3d29-44db-b45d-4ca949bf1541"
+					(reference "#PWR058")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/6204eccb-3424-4260-aeef-b69a8ccb7b2b"
+					(reference "#PWR059")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/84055d3e-52ff-4d41-a471-0e8476cb9e8f"
+					(reference "#PWR062")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/9d466cdc-a956-45d3-a849-5a70a9647136"
+					(reference "#PWR060")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/d696784b-41f0-43cc-893d-f7467e30c8dc"
+					(reference "#PWR063")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
 		(lib_id "Device:R_US")
 		(at 213.36 96.52 180)
 		(unit 1)
@@ -4851,6 +5020,101 @@
 				)
 				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/d696784b-41f0-43cc-893d-f7467e30c8dc"
 					(reference "R26")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 208.28 106.68 270)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "7f07e014-d495-40da-a07a-01411ee668da")
+		(property "Reference" "#PWR073"
+			(at 204.47 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 212.09 106.6799 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(justify left)
+			)
+		)
+		(property "Footprint" ""
+			(at 208.28 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 208.28 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 208.28 106.68 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "76342d4a-ffa3-406e-ae2d-a364a60c1795")
+		)
+		(instances
+			(project "Main_Board_PCB"
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/06145d17-a450-47d5-8d35-f56b7018e5af"
+					(reference "#PWR080")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/14eca385-e144-4233-a0b8-a6b37cf4ba8d"
+					(reference "#PWR077")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/331578d0-4883-44d5-96c6-44e3ef6e3ea8"
+					(reference "#PWR073")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/34ac870e-3d29-44db-b45d-4ca949bf1541"
+					(reference "#PWR074")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/6204eccb-3424-4260-aeef-b69a8ccb7b2b"
+					(reference "#PWR075")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/84055d3e-52ff-4d41-a471-0e8476cb9e8f"
+					(reference "#PWR078")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/9d466cdc-a956-45d3-a849-5a70a9647136"
+					(reference "#PWR076")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/d696784b-41f0-43cc-893d-f7467e30c8dc"
+					(reference "#PWR079")
 					(unit 1)
 				)
 			)
@@ -5066,6 +5330,194 @@
 				)
 				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/d696784b-41f0-43cc-893d-f7467e30c8dc"
 					(reference "J14")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 102.87 104.14 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "a9824fc8-4575-4823-bd62-939f5214e89c")
+		(property "Reference" "#PWR065"
+			(at 102.87 107.95 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 102.87 99.06 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 102.87 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 102.87 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 102.87 104.14 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "6d3dc0ae-eab7-4404-ae7e-a54371c865b7")
+		)
+		(instances
+			(project "Main_Board_PCB"
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/06145d17-a450-47d5-8d35-f56b7018e5af"
+					(reference "#PWR072")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/14eca385-e144-4233-a0b8-a6b37cf4ba8d"
+					(reference "#PWR069")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/331578d0-4883-44d5-96c6-44e3ef6e3ea8"
+					(reference "#PWR065")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/34ac870e-3d29-44db-b45d-4ca949bf1541"
+					(reference "#PWR066")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/6204eccb-3424-4260-aeef-b69a8ccb7b2b"
+					(reference "#PWR067")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/84055d3e-52ff-4d41-a471-0e8476cb9e8f"
+					(reference "#PWR070")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/9d466cdc-a956-45d3-a849-5a70a9647136"
+					(reference "#PWR068")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/d696784b-41f0-43cc-893d-f7467e30c8dc"
+					(reference "#PWR071")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "power:+3V3")
+		(at 213.36 91.44 0)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(fields_autoplaced yes)
+		(uuid "b98f67bf-f8c8-424c-8653-43bc2d032099")
+		(property "Reference" "#PWR081"
+			(at 213.36 95.25 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Value" "+3V3"
+			(at 213.36 86.36 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" ""
+			(at 213.36 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" ""
+			(at 213.36 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Power symbol creates a global label with name \"+3V3\""
+			(at 213.36 91.44 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "1"
+			(uuid "2bb4fe52-3a46-4dca-9bb9-c3529121fa38")
+		)
+		(instances
+			(project "Main_Board_PCB"
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/06145d17-a450-47d5-8d35-f56b7018e5af"
+					(reference "#PWR088")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/14eca385-e144-4233-a0b8-a6b37cf4ba8d"
+					(reference "#PWR085")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/331578d0-4883-44d5-96c6-44e3ef6e3ea8"
+					(reference "#PWR081")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/34ac870e-3d29-44db-b45d-4ca949bf1541"
+					(reference "#PWR082")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/6204eccb-3424-4260-aeef-b69a8ccb7b2b"
+					(reference "#PWR083")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/84055d3e-52ff-4d41-a471-0e8476cb9e8f"
+					(reference "#PWR086")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/9d466cdc-a956-45d3-a849-5a70a9647136"
+					(reference "#PWR084")
+					(unit 1)
+				)
+				(path "/73c65ec5-3a17-458e-a8ce-d3182635bc4f/e2108b41-efd8-41fa-ab27-13b8205b6a5c/d696784b-41f0-43cc-893d-f7467e30c8dc"
+					(reference "#PWR087")
 					(unit 1)
 				)
 			)
