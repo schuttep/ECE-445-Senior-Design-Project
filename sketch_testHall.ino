@@ -1,96 +1,133 @@
 #include <Wire.h>
-#include <FastLED.h>
+#include <Adafruit_NeoPixel.h>
 
-#define ADC_ADDR 0x10
+#define ADC_ADDR   0x10
+#define SDA_PIN    8
+#define SCL_PIN    9
 
-#define NUM_SENSORS 8
-#define NUM_LEDS 8
-#define LED_PIN 2
+#define LED_PIN    2
+#define NUM_LEDS   150
 
-#define THRESHOLD 150   // deviation from baseline
+#define CMD_REG_READ   0x10
+#define CMD_REG_WRITE  0x08
 
-CRGB leds[NUM_LEDS];
+#define THRESHOLD 300
 
-uint16_t hall[NUM_SENSORS];
-uint16_t baseline[NUM_SENSORS];
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
 
+uint16_t baseline[8];
 
-// Read all 8 channels from ADS7128
-void readADC()
+bool writeReg(uint8_t reg, uint8_t val)
 {
   Wire.beginTransmission(ADC_ADDR);
-  Wire.write(0x20);      // start of conversion registers
-  Wire.endTransmission();
-
-  Wire.requestFrom(ADC_ADDR, 16);
-
-  for(int i=0;i<NUM_SENSORS;i++)
-  {
-    hall[i] = (Wire.read() << 8) | Wire.read();
-  }
+  Wire.write(CMD_REG_WRITE);
+  Wire.write(reg);
+  Wire.write(val);
+  return (Wire.endTransmission() == 0);
 }
 
-
-// Establish baseline with no magnets
-void calibrateSensors()
+uint8_t readReg(uint8_t reg)
 {
-  Serial.println("Calibrating sensors... remove magnets");
+  Wire.beginTransmission(ADC_ADDR);
+  Wire.write(CMD_REG_READ);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0) return 0xFF;
 
-  delay(2000);
-
-  readADC();
-
-  for(int i=0;i<NUM_SENSORS;i++)
-  {
-    baseline[i] = hall[i];
-  }
-
-  Serial.println("Calibration complete");
+  if (Wire.requestFrom(ADC_ADDR, (uint8_t)1) != 1) return 0xFF;
+  return Wire.read();
 }
 
+uint16_t readADC()
+{
+  if (Wire.requestFrom(ADC_ADDR, (uint8_t)2) != 2) return 0xFFFF;
+
+  uint8_t msb = Wire.read();
+  uint8_t lsb = Wire.read();
+
+  return ((uint16_t)msb << 4) | (lsb >> 4);
+}
+
+uint16_t readChannel(uint8_t ch)
+{
+  writeReg(0x10, 0x00);       // manual mode
+  writeReg(0x11, ch & 0x0F);  // select channel
+  delayMicroseconds(50);
+  return readADC();
+}
+
+void calibrateBaselines()
+{
+  Serial.println("Calibrating baselines... remove magnets");
+  delay(1000);
+
+  for (int ch = 0; ch < 8; ch++) {
+    uint32_t sum = 0;
+    const int samples = 20;
+
+    for (int i = 0; i < samples; i++) {
+      sum += readChannel(ch);
+      delay(5);
+    }
+
+    baseline[ch] = sum / samples;
+
+    Serial.print("Baseline ");
+    Serial.print(ch);
+    Serial.print(": ");
+    Serial.println(baseline[ch]);
+  }
+
+  Serial.println("Calibration done");
+}
 
 void setup()
 {
-  neopixelWrite(48, 0, 0, 0); 
-
   Serial.begin(115200);
-
-  Wire.begin(8,9);
-
-  FastLED.addLeds<WS2812B, LED_PIN, GRB>(leds, NUM_LEDS);
-
-  FastLED.clear();
-  FastLED.show();
-
   delay(1000);
 
-  calibrateSensors();
-}
+  Wire.begin(SDA_PIN, SCL_PIN);
+  Wire.setClock(100000);
 
+  strip.begin();
+  strip.setBrightness(40);
+  strip.clear();
+  strip.show();
+
+  // ADS7128 setup
+  writeReg(0x05, 0x00);  // all pins analog
+  writeReg(0x10, 0x00);  // manual mode
+
+  calibrateBaselines();
+}
 
 void loop()
 {
-  readADC();
+  strip.clear();
 
-  for(int i=0;i<NUM_SENSORS;i++)
-  {
-    int diff = abs(hall[i] - baseline[i]);
+  for (int ch = 0; ch < 8; ch++) {
+    uint16_t raw = readChannel(ch);
+    int diff = (int)raw - (int)baseline[ch];
 
-    if(diff > THRESHOLD)
-      leds[i] = CRGB::Green;
-    else
-      leds[i] = CRGB::Black;
+    Serial.print("CH");
+    Serial.print(ch);
+    Serial.print(": ");
+    Serial.print(raw);
+    Serial.print("  diff: ");
+    Serial.print(diff);
+    Serial.print("   ");
 
-    // Serial Plotter output
-    Serial.print(i);
-    Serial.print(" ");
-    Serial.print(hall[i]);
-    Serial.print(" ");
+    if (diff >= THRESHOLD) {
+      strip.setPixelColor(ch, strip.Color(255, 255, 255)); // white
+    }
+    else if (diff <= -THRESHOLD) {
+      strip.setPixelColor(ch, strip.Color(255, 0, 0));     // red
+    }
+    else {
+      strip.setPixelColor(ch, 0);                          // off
+    }
   }
 
   Serial.println();
-
-  FastLED.show();
-
+  strip.show();
   delay(50);
 }
