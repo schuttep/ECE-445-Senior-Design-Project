@@ -1,13 +1,102 @@
 # ESP32 Chessboard Firmware
 
-This sketch runs on an ESP32 and handles:
+## 🔧 Setup (Clone & Upload from GitHub)
 
-* Display (touchscreen UI)
-* WiFi connectivity
-* API communication
-* LED control for board state
+Follow these steps to get the firmware running on your ESP32 using the Arduino IDE:
 
-It is organized into modular drivers for clarity and scalability.
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
+```
+
+Or download the ZIP from GitHub and extract it.
+
+---
+
+### 2. Open in Arduino IDE
+
+* Open **Arduino IDE**
+* Click **File → Open**
+* Navigate to the folder
+* Open:
+
+```text
+ChessBoard/ChessBoard.ino
+```
+
+⚠️ Important:
+
+* The `.ino` file must be inside a folder with the **same name** (`ChessBoard/ChessBoard.ino`)
+* All `.cpp` and `.h` files must be in the same folder
+
+---
+
+### 3. Install Required Libraries
+
+In Arduino IDE:
+
+* Go to **Tools → Manage Libraries**
+
+* Install:
+
+* DFRobot_GDL
+
+* DFRobot_Touch
+
+* DFRobot_UI
+
+* ArduinoJson
+
+* Adafruit NeoPixel
+
+---
+
+### 4. Install ESP32 Board Support
+
+* Go to **File → Preferences**
+* Add this to *Additional Board Manager URLs*:
+
+```text
+https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
+```
+
+Then:
+
+* Go to **Tools → Board → Boards Manager**
+* Search **ESP32**
+* Install **esp32 by Espressif Systems**
+
+---
+
+### 5. Select Board & Port
+
+* Tools → Board → **ESP32S3 Dev Module** (or your specific board)
+* Tools → Port → select your ESP32
+
+---
+
+### 6. Configure WiFi
+
+Open:
+
+```text
+headers.h
+```
+
+Update:
+
+```cpp
+constexpr const char* WIFI_SSID = "your_wifi";
+constexpr const char* WIFI_PASS = "your_password";
+```
+
+---
+
+### 7. Upload
+
+* Click **Upload**
+* Open Serial Monitor (115200 baud)
 
 ---
 
