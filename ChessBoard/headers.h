@@ -1,8 +1,7 @@
 #ifndef HEADERS_H
 #define HEADERS_H
 
-constexpr const char* WIFI_SSID = "405 E Stoughton";
-constexpr const char* WIFI_PASS = "VividBoleGorilla";
+#include "secrets.h"
 
 #define NUM_LEDS 64
 #define LED_PIN 6

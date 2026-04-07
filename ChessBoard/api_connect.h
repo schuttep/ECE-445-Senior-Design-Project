@@ -3,7 +3,13 @@
 
 #include <Arduino.h>
 
-String fetchLatestFEN();
-String pushLatestFEN(const String& move, const String& fen);
+struct ApiResult
+{
+    bool ok;
+    String data;
+};
+
+ApiResult fetchLatestFEN();
+ApiResult pushLatestFEN(const String &move, const String &fen);
 
 #endif

@@ -5,7 +5,7 @@
 
 void initDisplay();
 void drawConnectingScreen();
-void drawMainScreen(bool wifiConnected, const String& fen);
-void drawFenBox(const String& fen);
+void drawMenuScreen(bool wifiConnected);
+void drawGameScreen(bool wifiConnected, bool fenOk, const String &data);
 
 #endif

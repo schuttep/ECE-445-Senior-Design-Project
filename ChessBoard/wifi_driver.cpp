@@ -4,17 +4,16 @@
 #include "wifi_driver.h"
 
 // ===================== WIFI / API =====================
-const char* ssid = "405 E Stoughton";
-const char* password = "VividBoleGorilla";
-
-bool connectWifi(){
+bool connectWifi()
+{
   Serial.print("Connecting to WiFi");
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
   int tries = 0;
-  while (WiFi.status() != WL_CONNECTED && tries < 40) {
+  while (WiFi.status() != WL_CONNECTED && tries < 40)
+  {
     delay(500);
     Serial.print(".");
     tries++;
@@ -22,7 +21,8 @@ bool connectWifi(){
 
   Serial.println();
 
-  if (WiFi.status() == WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED)
+  {
     Serial.println("Connected!");
     Serial.print("IP: ");
     Serial.println(WiFi.localIP());

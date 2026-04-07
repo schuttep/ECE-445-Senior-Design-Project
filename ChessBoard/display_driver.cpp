@@ -1,102 +1,104 @@
 #include "display_driver.h"
 #include "DFRobot_GDL.h"
 
-// screen object defined in .ino
 extern DFRobot_ST7365P_320x480_HW_SPI screen;
 
-static void drawTitle() {
-  screen.fillRect(0, 15, 320, 20, COLOR_RGB565_WHITE);
+static void drawHeader(bool wifiConnected)
+{
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_BLACK);
+
+  // Title
   screen.setCursor(20, 20);
-  screen.setTextSize(1);
-  screen.setTextColor(COLOR_RGB565_BLACK);
-  screen.print("Chessboard FEN");
+  screen.print("ChessBoard");
+
+  // WiFi status top-right
+  screen.setCursor(200, 20);
+  if (wifiConnected)
+    screen.print("WiFi: OK");
+  else
+    screen.print("WiFi: --");
+
+  // Divider
+  screen.drawFastHLine(0, 38, 320, COLOR_RGB565_BLACK);
 }
 
-static void drawStatusLine(bool wifiConnected) {
-  screen.fillRect(0, 45, 320, 20, COLOR_RGB565_WHITE);
-  screen.setCursor(20, 50);
-  screen.setTextSize(1);
-  screen.setTextColor(COLOR_RGB565_BLACK);
-
-  if (wifiConnected) {
-    screen.print("WiFi: Connected");
-  } else {
-    screen.print("WiFi: Not Connected");
-  }
-}
-
-static void drawFENRows(const String& fen, int startX, int startY) {
+static void drawFENRows(const String &fen, int startX, int startY)
+{
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_BLACK);
 
   int x = startX;
   int y = startY;
 
-  for (int i = 0; i < fen.length(); i++) {
+  for (int i = 0; i < (int)fen.length(); i++)
+  {
     char c = fen[i];
-
-    if (c == ' ') break;
-
-    if (c == '/') {
+    if (c == ' ')
+      break;
+    if (c == '/')
+    {
       y += 22;
       x = startX;
       continue;
     }
-
-    if (c >= '1' && c <= '8') {
+    if (c >= '1' && c <= '8')
+    {
       int count = c - '0';
-      for (int j = 0; j < count; j++) {
+      for (int j = 0; j < count; j++)
+      {
         screen.setCursor(x, y);
         screen.print(".");
         x += 14;
       }
       continue;
     }
-
     screen.setCursor(x, y);
     screen.print(c);
     x += 14;
   }
 }
 
-void initDisplay() {
-  screen.fillScreen(COLOR_RGB565_WHITE);
+void initDisplay()
+{
+  screen.begin();
   screen.setTextWrap(false);
 }
 
-void drawConnectingScreen() {
+void drawConnectingScreen()
+{
   screen.fillScreen(COLOR_RGB565_WHITE);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_BLACK);
-  screen.setCursor(20, 20);
+  screen.setCursor(80, 230);
   screen.print("Connecting to WiFi...");
 }
 
-void drawFenBox(const String& fen) {
-  screen.fillRect(20, 180, 280, 260, COLOR_RGB565_WHITE);
-  screen.drawRect(20, 180, 280, 260, COLOR_RGB565_BLACK);
+void drawMenuScreen(bool wifiConnected)
+{
+  screen.fillScreen(COLOR_RGB565_WHITE);
+  drawHeader(wifiConnected);
 
-  screen.setCursor(30, 195);
-  screen.setTextSize(1);
+  // Centered title
+  screen.setTextSize(2);
   screen.setTextColor(COLOR_RGB565_BLACK);
-  screen.print("Board:");
-
-  if (fen == "Fetching..." ||
-      fen == "WiFi not connected" ||
-      fen == "Request failed" ||
-      fen == "JSON parse failed" ||
-      fen == "No moves found" ||
-      fen == "No fen field found") {
-    screen.setCursor(30, 220);
-    screen.print(fen);
-  } else {
-    drawFENRows(fen, 35, 220);
-  }
+  screen.setCursor(70, 120);
+  screen.print("Chess Board");
 }
 
-void drawMainScreen(bool wifiConnected, const String& fen) {
+void drawGameScreen(bool wifiConnected, bool fenOk, const String &data)
+{
   screen.fillScreen(COLOR_RGB565_WHITE);
-  drawTitle();
-  drawStatusLine(wifiConnected);
-  drawFenBox(fen);
+  drawHeader(wifiConnected);
+
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_BLACK);
+  screen.setCursor(20, 50);
+  screen.print("Board:");
+
+  screen.setCursor(20, 75);
+  if (fenOk)
+    drawFENRows(data, 20, 75);
+  else
+    screen.print(data);
 }
