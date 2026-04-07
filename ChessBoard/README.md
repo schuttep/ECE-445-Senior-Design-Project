@@ -1,279 +1,151 @@
-# ESP32 Chessboard Firmware
+# display_driver — Reference
 
-## 🔧 Setup (Clone & Upload from GitHub)
-
-Follow these steps to get the firmware running on your ESP32 using the Arduino IDE:
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-```
-
-Or download the ZIP from GitHub and extract it.
+`display_driver.h` / `display_driver.cpp` provides two layers of API for driving the 320×480 IPS screen: low-level **primitives** you can combine freely, and **pre-built full screens** for the four main states of the app.
 
 ---
 
-### 2. Open in Arduino IDE
+## Setup
 
-* Open **Arduino IDE**
-* Click **File → Open**
-* Navigate to the folder
-* Open:
-
-```text
-ChessBoard/ChessBoard.ino
-```
-
-⚠️ Important:
-
-* The `.ino` file must be inside a folder with the **same name** (`ChessBoard/ChessBoard.ino`)
-* All `.cpp` and `.h` files must be in the same folder
-
----
-
-### 3. Install Required Libraries
-
-In Arduino IDE:
-
-* Go to **Tools → Manage Libraries**
-
-* Install:
-
-* DFRobot_GDL
-
-* DFRobot_Touch
-
-* DFRobot_UI
-
-* ArduinoJson
-
-* Adafruit NeoPixel
-
----
-
-### 4. Install ESP32 Board Support
-
-* Go to **File → Preferences**
-* Add this to *Additional Board Manager URLs*:
-
-```text
-https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json
-```
-
-Then:
-
-* Go to **Tools → Board → Boards Manager**
-* Search **ESP32**
-* Install **esp32 by Espressif Systems**
-
----
-
-### 5. Select Board & Port
-
-* Tools → Board → **ESP32S3 Dev Module** (or your specific board)
-* Tools → Port → select your ESP32
-
----
-
-### 6. Configure WiFi
-
-Open:
-
-```text
-headers.h
-```
-
-Update:
+Call once in `setup()` before drawing anything:
 
 ```cpp
-constexpr const char* WIFI_SSID = "your_wifi";
-constexpr const char* WIFI_PASS = "your_password";
+initDisplay();
 ```
 
----
-
-### 7. Upload
-
-* Click **Upload**
-* Open Serial Monitor (115200 baud)
+This calls `screen.begin()` and disables text wrap.
 
 ---
 
-## 📁 File Structure
+## Primitives
 
-```text
-ChessBoard/
-├── ChessBoard.ino        # Main entry point
-├── config.h              # Pin definitions
-├── headers.h             # WiFi credentials
-│
-├── display.cpp / .h      # UI rendering
-├── wifi_driver.cpp / .h  # WiFi connection logic
-├── api_client.cpp / .h   # API communication (GET/POST FEN)
-├── LED_driver.cpp / .h   # LED board control
-```
+Building blocks for composing custom layouts directly from `ChessBoard.ino`.
 
----
-
-## 🧠 Architecture
-
-The sketch is split into independent modules:
-
-### `.ino`
-
-* Initializes hardware (SPI, I2C, screen, touch)
-* Manages high-level flow
-* Connects modules together
-
----
-
-### `display.*`
-
-* Handles all screen drawing
-* Renders:
-
-  * connection status
-  * FEN board
-  * UI states
-* No networking or logic
-
----
-
-### `wifi_driver.*`
-
-* Connects to WiFi
-* Returns connection status
-
----
-
-### `api_client.*`
-
-* Fetches latest FEN from backend
-* Pushes moves + FEN to backend
-
----
-
-### `LED_driver.*`
-
-* Controls WS2812 LED strip
-* Maps board positions → LED indices
-* Displays pieces using colors
-
----
-
-### `config.h`
-
-* All pin definitions
-* Central hardware configuration
-
----
-
-### `headers.h`
-
-* WiFi credentials (SSID / password)
-
----
-
-## 🔁 Firmware Flow
-
-### Startup
-
-1. Initialize display + hardware
-2. Show `"Connecting to WiFi..."`
-3. Connect to WiFi
-
----
-
-### Main Screen
-
-* Displays:
-
-  * WiFi status
-  * Board (FEN)
-* Shows **"Fetch FEN"** button
-
----
-
-### Button Press
-
-1. Show `"Fetching..."`
-2. Call API
-3. Update:
-
-   * display
-   * LED board
-
----
-
-## 🔌 Hardware Used
-
-* ESP32-S3
-* WS2812B LED strip (64 LEDs)
-* DFRobot 3.5" touchscreen display
-* I2C + SPI interfaces
-
----
-
-## ⚙️ Key Functions
-
-### Fetch latest board state
+### `displayClear()`
+Fills the entire screen white.
 
 ```cpp
-String fetchLatestFEN();
+displayClear();
 ```
 
-### Push move + FEN
+---
+
+### `displayHeader(bool wifiConnected)`
+Draws the standard top bar: "ChessBoard" title on the left, "WiFi: OK" / "WiFi: --" on the right, and a full-width divider line at y=38.
 
 ```cpp
-String pushLatestFEN(const String& move, const String& fen);
+displayHeader(true);
 ```
 
-### Render board
+---
+
+### `displayCenteredText(const char* text, int y, uint8_t size, uint16_t color)`
+Prints text horizontally centered on the screen at the given y coordinate.
+
+| Parameter | Description |
+|---|---|
+| `text` | Null-terminated string to display |
+| `y` | Vertical pixel position (top of text) |
+| `size` | Text scale factor (1 = 6×8px per char, 2 = 12×16px, etc.) |
+| `color` | RGB565 color constant, e.g. `COLOR_RGB565_BLACK` |
 
 ```cpp
-drawMainScreen(wifiConnected, fen);
+displayCenteredText("Game Over", 200, 3, COLOR_RGB565_RED);
 ```
 
-### Update LEDs
+---
+
+### `displayButton(int x, int y, int w, int h, uint16_t color, const char* label)`
+Draws a filled colored rectangle with white centered label text (size 2).
+
+| Parameter | Description |
+|---|---|
+| `x`, `y` | Top-left corner |
+| `w`, `h` | Width and height in pixels |
+| `color` | Button fill color |
+| `label` | Button text |
 
 ```cpp
-lightFEN(fen.c_str());
+displayButton(30, 200, 260, 80, COLOR_RGB565_BLUE, "Join Game");
 ```
 
 ---
 
-## ⚠️ Notes
+### `displayStatusBar(const char* msg, uint16_t bgColor)`
+Draws a 22px colored bar at the very bottom of the screen (y=458) with white text.
 
-* The firmware does NOT compute chess logic
-* Full FEN must be provided when sending moves
-* LED mapping assumes 8×8 board (adjust if serpentine wiring)
-
----
-
-## 🚀 Future Improvements
-
-* Sensor integration for move detection
-* Local FEN generation
-* Auto-refresh polling
-* Game state validation
+```cpp
+displayStatusBar("Connected", COLOR_RGB565_GREEN);
+displayStatusBar("Error — tap to retry", COLOR_RGB565_RED);
+```
 
 ---
 
-## 🧪 Debugging Tips
+### `displayDivider(int y, uint16_t color)`
+Draws a full-width (320px) horizontal line at the given y position.
 
-* Use Serial Monitor (`115200 baud`)
-* Check WiFi connection before API calls
-* Verify LED mapping with test patterns
+```cpp
+displayDivider(100, COLOR_RGB565_BLACK);
+```
 
 ---
 
-## 📌 Summary
+## Pre-built Screens
 
-This firmware is a modular embedded system that:
+Ready-to-use full screen layouts. Each one calls `displayClear()` internally.
 
-* connects to a backend
-* displays board state
-* drives LEDs for visualization
+---
 
-Designed for scalability and easy debugging as features expand.
+### `drawConnectingScreen(const char* ssid)`
+Shown while connecting to WiFi. Displays the board title, a "Connecting..." message, the SSID name, and a blue status bar.
+
+```cpp
+drawConnectingScreen(WIFI_SSID);
+```
+
+---
+
+### `drawMenuScreen(bool wifiConnected)`
+Draws the main menu background — header bar + centered "Chess Board" title. Call `displayButton()` after to add your own buttons.
+
+```cpp
+drawMenuScreen(true);
+displayButton(30, 200, 260, 80, COLOR_RGB565_BLUE, "Join Game");
+displayButton(30, 310, 260, 80, COLOR_RGB565_GREEN, "Create Game");
+```
+
+---
+
+### `drawGameScreen(bool wifiConnected, bool fenOk, const String& data)`
+Draws the live board view. When `fenOk` is `true`, `data` is rendered as a FEN character grid. When `false`, `data` is shown as a plain error string. Status bar is green on success, red on failure.
+
+```cpp
+// Success
+drawGameScreen(true, true, "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR");
+
+// Error
+drawGameScreen(true, false, "Request failed");
+```
+
+---
+
+### `drawErrorScreen(const char* title, const char* detail)`
+Full-screen error layout: red banner with "! ERROR", bold title, word-wrapped detail text, and a red "Tap anywhere to dismiss" status bar.
+
+```cpp
+drawErrorScreen("Connection Lost", "Could not reach the game server. Check WiFi and try again.");
+```
+
+---
+
+### `drawDebugScreen(const char* const lines[], uint8_t count)`
+Black terminal-style screen with a green header bar and up to 30 lines of green monospace text. Useful for printing Serial-style diagnostics to the display.
+
+```cpp
+const char* dbg[] = {
+  "FEN: rnbqkbnr/pp...",
+  "HTTP: 200",
+  "Free heap: 142KB",
+  "Poll interval: 5000ms"
+};
+drawDebugScreen(dbg, 4);
+```
