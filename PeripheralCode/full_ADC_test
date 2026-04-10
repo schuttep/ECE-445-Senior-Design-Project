@@ -1,0 +1,172 @@
+#include <Wire.h>
+#include <Adafruit_NeoPixel.h>
+
+#define NUM_LEDS 64
+#define LED_PIN 6
+#define SDA_DAQ 38
+#define SCL_DAQ 32
+#define SCR_SCLK 45
+#define SCR_MOSI 48
+#define SCR_MISO 47
+#define SCR_CS 21
+#define SCR_RST 14
+#define SCR_DC 13
+#define SCR_BLK 12
+#define SCR_I2C_SCL 11
+#define SCR_I2C_SDA 10
+#define SCR_INT 9
+#define SCR_TCH_RST 8
+
+#define NUM_ADCS 8
+#define ADC_BASE_ADDR 0x10 // ADC chips addressed 0x10 .. 0x17
+
+#define CMD_REG_READ 0x10
+#define CMD_REG_WRITE 0x08
+
+#define THRESHOLD 300
+
+Adafruit_NeoPixel strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800);
+
+uint16_t baseline[NUM_ADCS][8];
+
+bool writeReg(uint8_t addr, uint8_t reg, uint8_t val)
+{
+  Wire.beginTransmission(addr);
+  Wire.write(CMD_REG_WRITE);
+  Wire.write(reg);
+  Wire.write(val);
+  return (Wire.endTransmission() == 0);
+}
+
+uint8_t readReg(uint8_t addr, uint8_t reg)
+{
+  Wire.beginTransmission(addr);
+  Wire.write(CMD_REG_READ);
+  Wire.write(reg);
+  if (Wire.endTransmission(false) != 0)
+    return 0xFF;
+
+  if (Wire.requestFrom(addr, (uint8_t)1) != 1)
+    return 0xFF;
+  return Wire.read();
+}
+
+uint16_t readADC(uint8_t addr)
+{
+  if (Wire.requestFrom(addr, (uint8_t)2) != 2)
+    return 0xFFFF;
+
+  uint8_t msb = Wire.read();
+  uint8_t lsb = Wire.read();
+
+  return ((uint16_t)msb << 4) | (lsb >> 4);
+}
+
+uint16_t readChannel(uint8_t addr, uint8_t ch)
+{
+  writeReg(addr, 0x10, 0x00);      // manual mode
+  writeReg(addr, 0x11, ch & 0x0F); // select channel
+  delayMicroseconds(50);
+  return readADC(addr);
+}
+
+void calibrateBaselines()
+{
+  Serial.println("Calibrating baselines... remove all magnets");
+  delay(1000);
+
+  for (int adc = 0; adc < NUM_ADCS; adc++)
+  {
+    uint8_t addr = ADC_BASE_ADDR + adc;
+    for (int ch = 0; ch < 8; ch++)
+    {
+      uint32_t sum = 0;
+      const int samples = 20;
+
+      for (int i = 0; i < samples; i++)
+      {
+        sum += readChannel(addr, ch);
+        delay(5);
+      }
+
+      baseline[adc][ch] = sum / samples;
+
+      Serial.print("ADC");
+      Serial.print(adc);
+      Serial.print(" CH");
+      Serial.print(ch);
+      Serial.print(": ");
+      Serial.println(baseline[adc][ch]);
+    }
+  }
+
+  Serial.println("Calibration done");
+}
+
+void setup()
+{
+  Serial.begin(115200);
+  delay(1000);
+
+  Wire.begin(SDA_DAQ, SCL_DAQ);
+  Wire.setClock(100000);
+
+  strip.begin();
+  strip.setBrightness(40);
+  strip.clear();
+  strip.show();
+
+  // ADS7128 setup for all 8 ADCs
+  for (int adc = 0; adc < NUM_ADCS; adc++)
+  {
+    uint8_t addr = ADC_BASE_ADDR + adc;
+    writeReg(addr, 0x05, 0x00); // all pins analog
+    writeReg(addr, 0x10, 0x00); // manual mode
+  }
+
+  calibrateBaselines();
+}
+
+void loop()
+{
+  strip.clear();
+
+  for (int adc = 0; adc < NUM_ADCS; adc++)
+  {
+    uint8_t addr = ADC_BASE_ADDR + adc;
+
+    for (int ch = 0; ch < 8; ch++)
+    {
+      uint16_t raw = readChannel(addr, ch);
+      int diff = (int)raw - (int)baseline[adc][ch];
+      int ledIndex = adc * 8 + ch; // LED 0-63 maps directly to ADC/channel
+
+      Serial.print("ADC");
+      Serial.print(adc);
+      Serial.print(" CH");
+      Serial.print(ch);
+      Serial.print(": ");
+      Serial.print(raw);
+      Serial.print("  diff: ");
+      Serial.print(diff);
+      Serial.print("   ");
+
+      if (diff >= THRESHOLD)
+      {
+        strip.setPixelColor(ledIndex, strip.Color(255, 255, 255)); // white – N pole
+      }
+      else if (diff <= -THRESHOLD)
+      {
+        strip.setPixelColor(ledIndex, strip.Color(255, 0, 0)); // red   – S pole
+      }
+      else
+      {
+        strip.setPixelColor(ledIndex, 0); // off
+      }
+    }
+    Serial.println();
+  }
+
+  strip.show();
+  delay(50);
+}
