@@ -6,7 +6,7 @@
 #define NUM_LEDS 64
 #define LED_PIN 6
 #define SDA_DAQ 38
-#define SCL_DAQ 32
+#define SCL_DAQ 39
 #define SCR_SCLK 45
 #define SCR_MOSI 48
 #define SCR_MISO 47
