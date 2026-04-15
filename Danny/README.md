@@ -11,3 +11,6 @@ I met with the team to prepare and demo the magentic capabiltiies of our project
 
 # 2026-03-24 - Main PCB Soldering
 The main PCB for our project arrived. I went to the lab to check our components were all present. Once I confirmed everything was there, I began applying solder paste using the PCB stencil. One of the USB connectors we bought isn't exactly what we needed so we may have to order new ones. After applying the paste, placed all the components on the board in the pasted slots. Once that was done, started up the reflow oven following the directions on the wall. Placed PCB in the oven and waited as it coldered our components to the board. Once the board was taken out a shorts check was done and we luckily had no bridging/shorting. Next stpes are to potentially program the board, build the physical chess board itself, and begin writing the backend chess game logic. 
+
+# 2026-04-10 - Tile PCB Soldering
+In our project, the tiles of the chess board are going to be individual black/white PCBs with a Hall Effect sensor underneath each one. These tile PCBs arrived and we began soldering them. Each tile has a few components to add. My task was to solder soem of these components to these boards. 
