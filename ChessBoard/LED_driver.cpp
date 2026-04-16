@@ -177,3 +177,96 @@ void demoSequence()
 
   delay(300);
 }
+
+void setLEDForSquare(int row, int col, uint8_t r, uint8_t g, uint8_t b)
+{
+  int ledIndex = boardToLedIndex(row, col);
+  strip.setPixelColor(ledIndex, strip.Color(r, g, b));
+  strip.show();
+}
+
+void lightLossAlert()
+{
+  strip.fill(strip.Color(255, 0, 0)); // red
+  strip.show();
+}
+
+void lightCheckAlert(const char *fen)
+{
+}
+
+void lightMoveAlert(const char *fen, const char *fenBefore)
+{
+  if (!fen || !fenBefore)
+    return;
+
+  // Parse both FEN board strings into 8x8 char arrays
+  char before[8][8];
+  char after[8][8];
+
+  for (int r = 0; r < 8; r++)
+    for (int c = 0; c < 8; c++)
+      before[r][c] = after[r][c] = '.';
+
+  auto parseFEN = [](const char *f, char board[8][8])
+  {
+    int r = 0, c = 0;
+    for (int i = 0; f[i] != '\0' && r < 8; i++)
+    {
+      char ch = f[i];
+      if (ch == ' ')
+        break;
+      if (ch == '/')
+      {
+        r++;
+        c = 0;
+      }
+      else if (ch >= '1' && ch <= '8')
+      {
+        int n = ch - '0';
+        while (n-- > 0 && c < 8)
+          c++;
+      }
+      else if (c < 8)
+      {
+        board[r][c++] = ch;
+      }
+    }
+  };
+
+  parseFEN(fenBefore, before);
+  parseFEN(fen, after);
+
+  strip.clear();
+
+  // Light only the changed squares: amber = from, green = to
+  for (int r = 0; r < 8; r++)
+  {
+    for (int c = 0; c < 8; c++)
+    {
+      if (before[r][c] == after[r][c])
+        continue;
+
+      int idx = boardToLedIndex(r, c);
+
+      if (before[r][c] != '.' && after[r][c] == '.')
+      {
+        // Square the piece left — amber
+        strip.setPixelColor(idx, strip.Color(255, 100, 0));
+      }
+      else if (after[r][c] != '.')
+      {
+        // Square the piece moved to — bright green
+        strip.setPixelColor(idx, strip.Color(0, 255, 80));
+      }
+    }
+  }
+
+  strip.show();
+}
+
+void lightWinAlert()
+{
+  strip.fill(strip.Color(0, 255, 0)); // green
+  strip.show();
+}
