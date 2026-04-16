@@ -27,4 +27,11 @@ struct ADCTestResult
 // Probe all 8 chips and read all 64 channels. Returns detailed test result.
 ADCTestResult testADCs();
 
+// Read a single channel from a single chip. chip=0-7, ch=0-7.
+// Returns raw 12-bit value, or 0xFFFF on error.
+uint16_t readRawChannel(uint8_t chip, uint8_t ch);
+
+// Returns the calibrated baseline for a given chip/channel.
+uint16_t getBaseline(uint8_t chip, uint8_t ch);
+
 #endif

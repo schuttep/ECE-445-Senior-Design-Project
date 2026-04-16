@@ -38,6 +38,7 @@ enum ScreenState
 {
   MENU,
   GAME,
+  BOARD_TEST,
   WIFI_LIST,
   WIFI_PASS_SCREEN
 };
@@ -47,6 +48,7 @@ bool wifiConnected = false;
 unsigned long menuShownAt = 0;
 unsigned long lastFENPoll = 0;
 const unsigned long FEN_POLL_INTERVAL = 5000;
+unsigned long lastBoardTestUpdate = 0;
 
 // WiFi manager UI state
 ScannedNetwork scannedNets[WM_MAX_SCAN];
@@ -65,6 +67,7 @@ void showWifiPassScreen(const char *ssid);
 void handleWifiListTouch(int tx, int ty);
 void handleWifiPassTouch(int tx, int ty);
 void runBoardTests();
+void drawBoardTestLive();
 static void waitForTap();
 
 // ===================== SCREEN HELPERS =====================
@@ -301,6 +304,10 @@ void handleTouch()
       return;
     }
   }
+  else if (currentScreen == BOARD_TEST)
+  {
+    showMenuScreen();
+  }
   else if (currentScreen == WIFI_LIST)
   {
     handleWifiListTouch(tx, ty);
@@ -360,87 +367,59 @@ void setup()
 }
 
 // ===================== BOARD SELF-TEST =====================
-void runBoardTests()
+void drawBoardTestLive()
 {
-  displayStatusBar("Running tests...", COLOR_RGB565_BLUE);
+  clearLEDs();
+  showLEDs();
 
-  static char buf[21][44];
-  static const char *lines[21];
-  uint8_t n = 0;
-
-  // 1. Display — visible if we got here
-  snprintf(buf[n], 44, "[PASS] Display:  visible");
-  lines[n] = buf[n];
-  n++;
-
-  // 2. Touch — just fired to reach this function
-  snprintf(buf[n], 44, "[PASS] Touch:    responded");
-  lines[n] = buf[n];
-  n++;
-
-  // 3. WiFi
-  snprintf(buf[n], 44, "[%s] WiFi:     %s",
-           wifiConnected ? "PASS" : "FAIL",
-           wifiConnected ? "connected" : "not connected");
-  lines[n] = buf[n];
-  n++;
-
-  // 4. API
-  if (wifiConnected)
+  // Erase and redraw one line per ADC chip showing chip index and ch1 raw value
+  static char lineBuf[8][28];
+  for (int chip = 0; chip < 8; chip++)
   {
-    ApiResult r = fetchLatestFEN();
-    if (r.ok)
-      snprintf(buf[n], 44, "[PASS] API:      FEN received");
+    uint16_t raw = readRawChannel(chip, 1);
+    bool active = false;
+
+    if (raw == 0xFFFF)
+    {
+      snprintf(lineBuf[chip], 28, " ADC%d ch1: NO RESPONSE", chip);
+    }
     else
     {
-      char err[18];
-      strncpy(err, r.data.c_str(), 17);
-      err[17] = '\0';
-      snprintf(buf[n], 44, "[FAIL] API:      %s", err);
+      int diff = (int)raw - (int)getBaseline(chip, 1);
+      active = abs(diff) >= 300;
+      snprintf(lineBuf[chip], 28, " ADC%d ch1: %4u %s", chip, (unsigned)raw,
+               active ? "*" : " ");
     }
+
+    // Light the entire row for this chip if active
+    if (active)
+    {
+      for (int col = 0; col < 8; col++)
+        setLEDForSquare(chip, col, 0, 180, 255);
+    }
+
+    int lineY = 22 + (2 + chip) * 14;
+    screen.fillRect(0, lineY, 320, 14, COLOR_RGB565_BLACK);
+    screen.setTextSize(1);
+    screen.setTextColor(active ? COLOR_RGB565_GREEN : (uint16_t)0x7BEF);
+    screen.setCursor(4, lineY);
+    screen.print(lineBuf[chip]);
   }
-  else
-    snprintf(buf[n], 44, "[SKIP] API:      no WiFi");
-  lines[n] = buf[n];
-  n++;
-
-  // 5. LEDs — flashes all green briefly
-  int ledCount = testLEDs();
-  snprintf(buf[n], 44, "[PASS] LEDs:     %d pixels lit", ledCount);
-  lines[n] = buf[n];
-  n++;
-
-  // 6. ADCs — probe presence + read all 64 channels
-  ADCTestResult adc = testADCs();
-  snprintf(buf[n], 44, "ADC chips (%d/8 found, %d/64 ch OK):",
-           __builtin_popcount(adc.chipMask), adc.totalValid);
-  lines[n] = buf[n];
-  n++;
-
-  // One line per chip: presence + channel validity
-  for (int i = 0; i < 8; i++)
-  {
-    bool chipOk = (adc.chipMask >> i) & 1;
-    bool chanOk = (adc.chanMask >> i) & 1;
-    if (!chipOk)
-      snprintf(buf[n], 44, "  ADC%d: [FAIL] no I2C response", i);
-    else if (!chanOk)
-      snprintf(buf[n], 44, "  ADC%d: [WARN] chip OK, ch errors", i);
-    else
-      snprintf(buf[n], 44, "  ADC%d: [PASS] 8/8 channels valid", i);
-    lines[n] = buf[n];
-    n++;
-  }
-
-  drawDebugScreen(lines, n);
-  waitForTap();
-
-  // Light the LEDs based on live ADC readings before returning to menu
-  char fenBuf[72];
-  readBoardFEN(fenBuf);
-
-  showMenuScreen();
 }
+
+void runBoardTests()
+{
+  testLEDs();
+  currentScreen = BOARD_TEST;
+  lastBoardTestUpdate = 0;
+
+  // Draw the static frame once
+  static const char *initLines[2] = {
+      "Tap to exit  Live Readings",
+      "   Ch1 raw values (0-4095)"};
+  drawDebugScreen(initLines, 2);
+
+  drawBoardTestLive();
 }
 
 // ===================== LOOP =====================
@@ -448,9 +427,10 @@ void loop()
 {
   handleTouch();
 
+  unsigned long now = millis();
+
   if (currentScreen == GAME)
   {
-    unsigned long now = millis();
     if (now - lastFENPoll >= FEN_POLL_INTERVAL)
     {
       lastFENPoll = now;
@@ -461,6 +441,15 @@ void loop()
         lightFEN(currentFEN.c_str());
         drawGameScreen(wifiConnected, true, currentFEN);
       }
+    }
+  }
+
+  if (currentScreen == BOARD_TEST)
+  {
+    if (now - lastBoardTestUpdate >= 300)
+    {
+      lastBoardTestUpdate = now;
+      drawBoardTestLive();
     }
   }
 }

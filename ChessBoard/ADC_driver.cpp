@@ -19,20 +19,20 @@ static uint16_t baseline[NUM_ADCS][8];
 
 static bool writeReg(uint8_t addr, uint8_t reg, uint8_t val)
 {
-    Wire.beginTransmission(addr);
-    Wire.write(CMD_REG_WRITE);
-    Wire.write(reg);
-    Wire.write(val);
-    return (Wire.endTransmission() == 0);
+    Wire1.beginTransmission(addr);
+    Wire1.write(CMD_REG_WRITE);
+    Wire1.write(reg);
+    Wire1.write(val);
+    return (Wire1.endTransmission() == 0);
 }
 
 static uint16_t readADC(uint8_t addr)
 {
-    if (Wire.requestFrom(addr, (uint8_t)2) != 2)
+    if (Wire1.requestFrom(addr, (uint8_t)2) != 2)
         return 0xFFFF;
 
-    uint8_t msb = Wire.read();
-    uint8_t lsb = Wire.read();
+    uint8_t msb = Wire1.read();
+    uint8_t lsb = Wire1.read();
     return ((uint16_t)msb << 4) | (lsb >> 4);
 }
 
@@ -42,6 +42,22 @@ static uint16_t readChannel(uint8_t addr, uint8_t ch)
     writeReg(addr, 0x11, ch & 0x0F); // select channel
     delayMicroseconds(50);
     return readADC(addr);
+}
+
+// Public single-channel read (chip 0-7, channel 0-7). Returns raw 12-bit value.
+uint16_t readRawChannel(uint8_t chip, uint8_t ch)
+{
+    if (chip >= NUM_ADCS)
+        return 0xFFFF;
+    return readChannel(ADC_BASE_ADDR + chip, ch & 0x0F);
+}
+
+// Returns the calibrated baseline for a given chip/channel.
+uint16_t getBaseline(uint8_t chip, uint8_t ch)
+{
+    if (chip >= NUM_ADCS || ch >= 8)
+        return 0;
+    return baseline[chip][ch];
 }
 
 // Mirror the snake-pattern used in LED_driver.cpp so LEDs match squares.
@@ -58,8 +74,8 @@ static int adcToLedIndex(int row, int col)
 
 void initADCs()
 {
-    Wire.begin(SDA_DAQ, SCL_DAQ);
-    Wire.setClock(100000);
+    Wire1.begin(SDA_DAQ, SCL_DAQ);
+    Wire1.setClock(100000);
 
     for (int adc = 0; adc < NUM_ADCS; adc++)
     {
@@ -168,8 +184,8 @@ ADCTestResult testADCs()
         uint8_t addr = ADC_BASE_ADDR + adc;
 
         // --- chip presence probe ---
-        Wire.beginTransmission(addr);
-        if (Wire.endTransmission() != 0)
+        Wire1.beginTransmission(addr);
+        if (Wire1.endTransmission() != 0)
             continue; // chip not found; leave both bits clear
 
         result.chipMask |= (1 << adc);
