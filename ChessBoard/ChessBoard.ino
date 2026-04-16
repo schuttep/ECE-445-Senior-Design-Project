@@ -7,6 +7,7 @@
 #include "wifi_driver.h"
 #include "api_connect.h"
 #include "LED_driver.h"
+#include "ADC_driver.h"
 #include "wifi_manager.h"
 
 #include "DFRobot_GDL.h"
@@ -63,6 +64,7 @@ void showWifiListScreen();
 void showWifiPassScreen(const char *ssid);
 void handleWifiListTouch(int tx, int ty);
 void handleWifiPassTouch(int tx, int ty);
+void runBoardTests();
 static void waitForTap();
 
 // ===================== SCREEN HELPERS =====================
@@ -72,7 +74,7 @@ void showMenuScreen()
   drawMenuScreen(wifiConnected);
 
   displayButton(JOIN_BTN_X, JOIN_BTN_Y, JOIN_BTN_W, JOIN_BTN_H, COLOR_RGB565_BLUE, "Join Game");
-  displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, COLOR_RGB565_GREEN, "Create Game");
+  displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, 0xFD20, "Run Tests");
   displayButton(WIFI_BTN_X, WIFI_BTN_Y, WIFI_BTN_W, WIFI_BTN_H, 0x7BEF, "WiFi Settings");
 
   menuShownAt = millis();
@@ -289,10 +291,7 @@ void handleTouch()
     if (tx >= CREATE_BTN_X && tx <= CREATE_BTN_X + CREATE_BTN_W &&
         ty >= CREATE_BTN_Y && ty <= CREATE_BTN_Y + CREATE_BTN_H)
     {
-      displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H,
-                    COLOR_RGB565_RED, "Coming Soon");
-      delay(1000);
-      showMenuScreen();
+      runBoardTests();
       return;
     }
     if (tx >= WIFI_BTN_X && tx <= WIFI_BTN_X + WIFI_BTN_W &&
@@ -333,19 +332,115 @@ void setup()
   setupDisplayHardware();
   initDisplay();
   initLEDs();
+  initADCs();
+  calibrateBaselines();
 
   drawConnectingScreen(WIFI_SSID);
-  // Try all NVS-saved networks first; fall back to secrets.h creds
+  // 1. Try all NVS-saved networks first
   wifiConnected = wmConnectBoot();
+  // 2. Fall back to secrets.h credentials
   if (!wifiConnected)
   {
     wifiConnected = connectWifi();
     if (wifiConnected)
       wmSaveNetwork(WIFI_SSID, WIFI_PASS); // persist for future boots
   }
+  // 3. Nothing worked — let the user pick a network from the scan list
+  if (!wifiConnected)
+  {
+    displayStatusBar("No network found - select WiFi", COLOR_RGB565_RED);
+    delay(1200);
+    demoSequence();
+    showWifiListScreen();
+    return;
+  }
 
   demoSequence();
   showMenuScreen();
+}
+
+// ===================== BOARD SELF-TEST =====================
+void runBoardTests()
+{
+  displayStatusBar("Running tests...", COLOR_RGB565_BLUE);
+
+  static char buf[21][44];
+  static const char *lines[21];
+  uint8_t n = 0;
+
+  // 1. Display — visible if we got here
+  snprintf(buf[n], 44, "[PASS] Display:  visible");
+  lines[n] = buf[n];
+  n++;
+
+  // 2. Touch — just fired to reach this function
+  snprintf(buf[n], 44, "[PASS] Touch:    responded");
+  lines[n] = buf[n];
+  n++;
+
+  // 3. WiFi
+  snprintf(buf[n], 44, "[%s] WiFi:     %s",
+           wifiConnected ? "PASS" : "FAIL",
+           wifiConnected ? "connected" : "not connected");
+  lines[n] = buf[n];
+  n++;
+
+  // 4. API
+  if (wifiConnected)
+  {
+    ApiResult r = fetchLatestFEN();
+    if (r.ok)
+      snprintf(buf[n], 44, "[PASS] API:      FEN received");
+    else
+    {
+      char err[18];
+      strncpy(err, r.data.c_str(), 17);
+      err[17] = '\0';
+      snprintf(buf[n], 44, "[FAIL] API:      %s", err);
+    }
+  }
+  else
+    snprintf(buf[n], 44, "[SKIP] API:      no WiFi");
+  lines[n] = buf[n];
+  n++;
+
+  // 5. LEDs — flashes all green briefly
+  int ledCount = testLEDs();
+  snprintf(buf[n], 44, "[PASS] LEDs:     %d pixels lit", ledCount);
+  lines[n] = buf[n];
+  n++;
+
+  // 6. ADCs — probe presence + read all 64 channels
+  ADCTestResult adc = testADCs();
+  snprintf(buf[n], 44, "ADC chips (%d/8 found, %d/64 ch OK):",
+           __builtin_popcount(adc.chipMask), adc.totalValid);
+  lines[n] = buf[n];
+  n++;
+
+  // One line per chip: presence + channel validity
+  for (int i = 0; i < 8; i++)
+  {
+    bool chipOk = (adc.chipMask >> i) & 1;
+    bool chanOk = (adc.chanMask >> i) & 1;
+    if (!chipOk)
+      snprintf(buf[n], 44, "  ADC%d: [FAIL] no I2C response", i);
+    else if (!chanOk)
+      snprintf(buf[n], 44, "  ADC%d: [WARN] chip OK, ch errors", i);
+    else
+      snprintf(buf[n], 44, "  ADC%d: [PASS] 8/8 channels valid", i);
+    lines[n] = buf[n];
+    n++;
+  }
+
+  drawDebugScreen(lines, n);
+  waitForTap();
+
+  // Light the LEDs based on live ADC readings before returning to menu
+  char fenBuf[72];
+  readBoardFEN(fenBuf);
+
+  showMenuScreen();
+}
 }
 
 // ===================== LOOP =====================
