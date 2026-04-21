@@ -1,0 +1,49 @@
+#ifndef GAMELOOP_H
+#define GAMELOOP_H
+
+#include <Arduino.h>
+
+// ---------------------------------------------------------------------------
+// Initialisation — call once from setup() after hardware and WiFi are ready.
+// ---------------------------------------------------------------------------
+void cgm_setup();
+
+// ---------------------------------------------------------------------------
+// Main tick — call every loop() iteration while in the GAME screen.
+// ---------------------------------------------------------------------------
+void cgm_tick();
+
+// ---------------------------------------------------------------------------
+// Feed the physical board state (board-only FEN string) to the FSM.
+// Call this before cgm_tick() every iteration.
+// ---------------------------------------------------------------------------
+void cgm_setPhysicalBoardFEN(const String &fen);
+
+// ---------------------------------------------------------------------------
+// Game control — map these to UI events (touch buttons, menu items).
+// ---------------------------------------------------------------------------
+void cgm_startGameNow();                // Begin a game (from menu or new-game prompt)
+void cgm_resetManager();                // Reset FSM back to idle (call before startGameNow)
+void cgm_requestNewGame();              // Request restart from the GAME_END state
+void cgm_confirmPendingMove();          // Confirm the move currently awaiting approval
+void cgm_cancelPendingMove();           // Cancel/undo the move awaiting approval
+void cgm_setPromotionPiece(char piece); // Set promotion piece (default 'Q')
+
+// ---------------------------------------------------------------------------
+// State queries — used by ChessBoard.ino to drive the display overlay.
+// ---------------------------------------------------------------------------
+bool cgm_isConfirming();                 // True while waiting for confirm/cancel
+bool cgm_isWaitingForRemote();           // True while polling for opponent move
+bool cgm_isGameOver();                   // True when in GAME_END state
+bool cgm_isWhiteToMove();                // Whose turn it currently is
+bool cgm_isInCheck();                    // Is the current player's king in check?
+const String &cgm_getCommittedFEN();     // Last accepted board FEN
+const String &cgm_getPendingFEN();       // Candidate FEN awaiting confirmation
+const String &cgm_getIncomingFEN();      // Remote move FEN being applied
+const String &cgm_getGameResultString(); // Human-readable result string
+
+// Fills squareName[3] (e.g. "e2\0") and returns true when exactly one piece
+// has been lifted off the committed board (local turn wait state only).
+bool cgm_getPieceLiftSquare(char squareName[3]);
+
+#endif

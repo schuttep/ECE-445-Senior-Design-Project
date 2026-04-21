@@ -37,7 +37,7 @@ ApiResult fetchLatestFEN()
 {
   if (WiFi.status() != WL_CONNECTED)
   {
-    Serial.println("WiFi not connected");
+    Serial0.println("WiFi not connected");
     return {false, "WiFi not connected"};
   }
 
@@ -49,27 +49,27 @@ ApiResult fetchLatestFEN()
 
   int httpCode = http.GET();
 
-  Serial.print("HTTP code: ");
-  Serial.println(httpCode);
+  Serial0.print("HTTP code: ");
+  Serial0.println(httpCode);
 
   if (httpCode <= 0)
   {
-    Serial.println("Request failed");
+    Serial0.println("Request failed");
     http.end();
     return {false, "Request failed"};
   }
 
   String payload = http.getString();
-  Serial.println("Raw response:");
-  Serial.println(payload);
+  Serial0.println("Raw response:");
+  Serial0.println(payload);
 
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, payload);
 
   if (error)
   {
-    Serial.print("JSON parse failed: ");
-    Serial.println(error.c_str());
+    Serial0.print("JSON parse failed: ");
+    Serial0.println(error.c_str());
     http.end();
     return {false, "JSON parse failed"};
   }
@@ -78,7 +78,7 @@ ApiResult fetchLatestFEN()
 
   if (moves.isNull() || moves.size() == 0)
   {
-    Serial.println("No moves found");
+    Serial0.println("No moves found");
     http.end();
     return {false, "No moves found"};
   }
@@ -88,8 +88,8 @@ ApiResult fetchLatestFEN()
 
   if (fen)
   {
-    Serial.println("Latest FEN:");
-    Serial.println(fen);
+    Serial0.println("Latest FEN:");
+    Serial0.println(fen);
     return {true, String(fen)};
   }
 
@@ -100,7 +100,7 @@ ApiResult pushLatestFEN(const String &move, const String &fen)
 {
   if (WiFi.status() != WL_CONNECTED)
   {
-    Serial.println("WiFi not connected");
+    Serial0.println("WiFi not connected");
     return {false, "WiFi not connected"};
   }
 
@@ -119,32 +119,32 @@ ApiResult pushLatestFEN(const String &move, const String &fen)
   String requestBody;
   serializeJson(doc, requestBody);
 
-  Serial.println("Sending POST:");
-  Serial.println(requestBody);
+  Serial0.println("Sending POST:");
+  Serial0.println(requestBody);
 
   int httpCode = http.POST(requestBody);
 
-  Serial.print("HTTP code: ");
-  Serial.println(httpCode);
+  Serial0.print("HTTP code: ");
+  Serial0.println(httpCode);
 
   if (httpCode <= 0)
   {
-    Serial.println("POST failed");
+    Serial0.println("POST failed");
     http.end();
     return {false, "POST failed"};
   }
 
   String payload = http.getString();
-  Serial.println("Response:");
-  Serial.println(payload);
+  Serial0.println("Response:");
+  Serial0.println(payload);
 
   JsonDocument resDoc;
   DeserializationError error = deserializeJson(resDoc, payload);
 
   if (error)
   {
-    Serial.print("JSON parse failed: ");
-    Serial.println(error.c_str());
+    Serial0.print("JSON parse failed: ");
+    Serial0.println(error.c_str());
     http.end();
     return {false, "JSON parse failed"};
   }
@@ -155,10 +155,57 @@ ApiResult pushLatestFEN(const String &move, const String &fen)
 
   if (newFen)
   {
-    Serial.println("Updated FEN:");
-    Serial.println(newFen);
+    Serial0.println("Updated FEN:");
+    Serial0.println(newFen);
     return {true, String(newFen)};
   }
 
   return {false, "No fen in response"};
+}
+
+// ---------------------------------------------------------------------------
+// pushFENState — richer POST used by the game FSM
+// ---------------------------------------------------------------------------
+ApiResult pushFENState(const String &fen, bool isWhite,
+                       uint16_t gameId, uint8_t boardNum)
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return {false, "WiFi not connected"};
+
+  WiFiClientSecure client;
+  client.setCACert(AWS_ROOT_CA);
+
+  HTTPClient http;
+  http.begin(client, API_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  JsonDocument doc;
+  doc["game_id"] = gameId;
+  doc["board_number"] = boardNum;
+  doc["fen"] = fen;
+  doc["player_color"] = isWhite ? "white" : "black";
+  doc["mac_address"] = WiFi.macAddress();
+
+  String body;
+  serializeJson(doc, body);
+
+  Serial0.print("[API] pushFENState POST: ");
+  Serial0.println(body);
+
+  int code = http.POST(body);
+  String response = http.getString();
+  http.end();
+
+  Serial0.print("[API] pushFENState code: ");
+  Serial0.println(code);
+  if (response.length() > 0)
+  {
+    Serial0.print("[API] pushFENState body: ");
+    Serial0.println(response);
+  }
+
+  if (code < 200 || code >= 300)
+    return {false, "HTTP " + String(code)};
+
+  return {true, response};
 }

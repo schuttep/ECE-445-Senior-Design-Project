@@ -705,7 +705,8 @@ String validateMoveAndReturnFEN(const String &beforeFEN,
                                 const String &afterFEN,
                                 bool whiteToMove,
                                 const bool castling[4],
-                                char promotionPiece)
+                                char promotionPiece,
+                                const char *enPassantSquare)
 {
     char before[8][8];
     char after[8][8];
@@ -932,6 +933,83 @@ String validateMoveAndReturnFEN(const String &beforeFEN,
                             (bool *)castling, newCastling);
 
         valid = true;
+    }
+
+    // ----------------------------
+    // Try en passant
+    // En passant changes exactly 3 squares:
+    //   moving pawn source  → empty
+    //   captured pawn square → empty  (NOT the destination)
+    //   destination square   → pawn
+    // ----------------------------
+    if (!valid && diffCount == 3 && enPassantSquare != nullptr && enPassantSquare[0] != '\0')
+    {
+        int epCol = enPassantSquare[0] - 'a';
+        int epRow = '8' - enPassantSquare[1];
+
+        if (epCol >= 0 && epCol < 8 && epRow >= 0 && epRow < 8)
+        {
+            // Destination must be the en passant target square
+            bool dstIsEP = (before[epRow][epCol] == '.' && after[epRow][epCol] != '.');
+
+            int srcRow = -1, srcCol = -1; // moving pawn source
+            int capRow = -1, capCol = -1; // captured pawn square
+
+            for (int r = 0; r < 8; r++)
+            {
+                for (int c = 0; c < 8; c++)
+                {
+                    if (before[r][c] == after[r][c])
+                        continue;
+                    if (r == epRow && c == epCol)
+                        continue; // destination handled above
+                    if (before[r][c] != '.' && after[r][c] == '.')
+                    {
+                        char piece = before[r][c];
+                        if (tolower(piece) == 'p' && isWhitePiece(piece) == whiteToMove)
+                        {
+                            srcRow = r;
+                            srcCol = c; // our pawn's source
+                        }
+                        else if (tolower(piece) == 'p' && isWhitePiece(piece) != whiteToMove)
+                        {
+                            capRow = r;
+                            capCol = c; // captured opponent pawn
+                        }
+                    }
+                }
+            }
+
+            if (dstIsEP && srcRow != -1 && capRow != -1)
+            {
+                char movingPawn = before[srcRow][srcCol];
+                char capturedPawn = before[capRow][capCol];
+
+                // Captured pawn must be on the same file as destination,
+                // one rank behind (from the mover's perspective)
+                int expectedCapRow = whiteToMove ? epRow + 1 : epRow - 1;
+
+                if (capRow == expectedCapRow && capCol == epCol &&
+                    tolower(movingPawn) == 'p' &&
+                    tolower(capturedPawn) == 'p' &&
+                    abs(srcCol - epCol) == 1 &&
+                    (whiteToMove ? (srcRow - epRow == 1) : (epRow - srcRow == 1)))
+                {
+                    char expected[8][8];
+                    copyBoard(before, expected);
+                    expected[srcRow][srcCol] = '.';
+                    expected[capRow][capCol] = '.';
+                    expected[epRow][epCol] = movingPawn;
+
+                    if (sameBoard(expected, after) && !isKingInCheck(expected, whiteToMove))
+                    {
+                        for (int i = 0; i < 4; i++)
+                            newCastling[i] = castling[i]; // en passant never affects castling
+                        valid = true;
+                    }
+                }
+            }
+        }
     }
 
     if (!valid)

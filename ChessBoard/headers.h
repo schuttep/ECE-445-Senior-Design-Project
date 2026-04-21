@@ -3,10 +3,21 @@
 
 #include "secrets.h"
 
+// Common RGB565 colour values — guarded so the DFRobot GDL library
+// can also define them without a redefinition error.
+#ifndef COLOR_RGB565_BLACK
+#define COLOR_RGB565_BLACK 0x0000
+#define COLOR_RGB565_WHITE 0xFFFF
+#define COLOR_RGB565_RED 0xF800
+#define COLOR_RGB565_GREEN 0x07E0
+#define COLOR_RGB565_BLUE 0x001F
+#define COLOR_RGB565_YELLOW 0xFFE0
+#endif
+
 #define NUM_LEDS 64
 #define LED_PIN 6
 #define SDA_DAQ 38
-#define SCL_DAQ 39  
+#define SCL_DAQ 39
 #define SCR_SCLK 45
 #define SCR_MOSI 48
 #define SCR_MISO 47

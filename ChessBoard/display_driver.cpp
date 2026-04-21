@@ -4,12 +4,44 @@
 extern DFRobot_ST7365P_320x480_HW_SPI screen;
 
 // ── Layout constants ──────────────────────────────────────────────────────────
-static constexpr int SCR_W    = 320;
-static constexpr int SCR_H    = 480;
+static constexpr int SCR_W = 320;
+static constexpr int SCR_H = 480;
 static constexpr int STATUS_Y = 458; // y-start of bottom status bar
 static constexpr int STATUS_H = 22;  // height of status bar
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
+
+// Parse a board-only FEN into an 8×8 char array ('.' = empty).
+// Returns false if the FEN is malformed.
+static bool fenToBoard(const String &fen, char board[8][8])
+{
+  int r = 0, c = 0;
+  for (int i = 0; i < (int)fen.length(); i++)
+  {
+    char ch = fen[i];
+    if (ch == ' ' || ch == '\0')
+      break;
+    if (ch == '/')
+    {
+      r++;
+      c = 0;
+      if (r >= 8)
+        break;
+      continue;
+    }
+    if (ch >= '1' && ch <= '8')
+    {
+      int skip = ch - '0';
+      for (int k = 0; k < skip && c < 8; k++, c++)
+        board[r][c] = '.';
+      continue;
+    }
+    if (c < 8)
+      board[r][c++] = ch;
+  }
+  return (r == 7);
+}
+
 // Render the piece-placement section of a FEN string as a character grid.
 static void drawFENRows(const String &fen, int startX, int startY)
 {
@@ -22,7 +54,8 @@ static void drawFENRows(const String &fen, int startX, int startY)
   for (int i = 0; i < (int)fen.length(); i++)
   {
     char c = fen[i];
-    if (c == ' ') break;
+    if (c == ' ')
+      break;
     if (c == '/')
     {
       y += 22;
@@ -70,7 +103,8 @@ void displayCenteredText(const char *text, int y, uint8_t size, uint16_t color)
 {
   int textW = (int)strlen(text) * 6 * size;
   int x = (SCR_W - textW) / 2;
-  if (x < 0) x = 0;
+  if (x < 0)
+    x = 0;
   screen.setTextSize(size);
   screen.setTextColor(color);
   screen.setCursor(x, y);
@@ -144,9 +178,139 @@ void drawGameScreen(bool wifiConnected, bool fenOk, const String &data)
   }
 
   displayStatusBar(
-    fenOk ? "Live - updates every 5s" : "Fetch error",
-    fenOk ? COLOR_RGB565_GREEN : COLOR_RGB565_RED
-  );
+      fenOk ? "Game active" : "Waiting...",
+      fenOk ? COLOR_RGB565_GREEN : COLOR_RGB565_BLUE);
+}
+
+// ---------------------------------------------------------------------------
+// drawGameScreenWithMove
+// Redraws the full board from afterFEN, then highlights:
+//   - source square (where piece was) in yellow
+//   - destination square (where piece went) in green
+// ---------------------------------------------------------------------------
+void drawGameScreenWithMove(bool wifiConnected,
+                            const String &beforeFEN,
+                            const String &afterFEN)
+{
+  // Draw the base board first (afterFEN is the current state)
+  drawGameScreen(wifiConnected, afterFEN.length() > 0, afterFEN);
+
+  if (beforeFEN.length() == 0 || afterFEN.length() == 0)
+    return;
+
+  // Board cell geometry — must match drawFENRows layout
+  static constexpr int GRID_X = 20;
+  static constexpr int GRID_Y = 75;
+  static constexpr int CELL_W = 14; // chars are 6 px wide + spacing → 14 px/cell
+  static constexpr int CELL_H = 22; // row spacing in drawFENRows
+
+  char before[8][8], after[8][8];
+  // Zero-init
+  for (int r = 0; r < 8; r++)
+    for (int c = 0; c < 8; c++)
+      before[r][c] = after[r][c] = '.';
+
+  fenToBoard(beforeFEN, before);
+  fenToBoard(afterFEN, after);
+
+  for (int r = 0; r < 8; r++)
+  {
+    for (int c = 0; c < 8; c++)
+    {
+      if (before[r][c] == after[r][c])
+        continue;
+
+      int px = GRID_X + c * CELL_W;
+      int py = GRID_Y + r * CELL_H;
+
+      // Source square: piece was here before, now empty → yellow
+      if (before[r][c] != '.' && after[r][c] == '.')
+      {
+        screen.fillRect(px - 1, py - 1, CELL_W, CELL_H, COLOR_RGB565_YELLOW);
+        screen.setTextSize(1);
+        screen.setTextColor(COLOR_RGB565_BLACK);
+        screen.setCursor(px, py);
+        screen.print('.');
+      }
+      // Destination square: piece appeared (or changed) → green
+      else if (after[r][c] != '.')
+      {
+        screen.fillRect(px - 1, py - 1, CELL_W, CELL_H, COLOR_RGB565_GREEN);
+        screen.setTextSize(1);
+        screen.setTextColor(COLOR_RGB565_BLACK);
+        screen.setCursor(px, py);
+        screen.print(after[r][c]);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// drawCheckAlert  — yellow banner overlaid on the game screen
+// ---------------------------------------------------------------------------
+void drawCheckAlert(bool whiteInCheck)
+{
+  static constexpr int BAN_Y = 42;
+  static constexpr int BAN_H = 18;
+  screen.fillRect(0, BAN_Y, SCR_W, BAN_H, COLOR_RGB565_YELLOW);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_BLACK);
+  const char *msg = whiteInCheck ? "  !! WHITE IS IN CHECK !!" : "  !! BLACK IS IN CHECK !!";
+  screen.setCursor(6, BAN_Y + 5);
+  screen.print(msg);
+}
+
+// ---------------------------------------------------------------------------
+// drawGameOverScreen  — full-panel shown when the game ends
+// ---------------------------------------------------------------------------
+void drawGameOverScreen(const char *resultLine)
+{
+  screen.fillScreen(COLOR_RGB565_BLACK);
+
+  // Coloured banner
+  uint16_t bannerCol = COLOR_RGB565_RED;
+  // detect stalemate / draw to use a neutral colour
+  if (strstr(resultLine, "stalemate") || strstr(resultLine, "Draw") ||
+      strstr(resultLine, "draw"))
+    bannerCol = 0x7BEF; // grey
+
+  screen.fillRect(0, 0, SCR_W, 64, bannerCol);
+  screen.setTextSize(2);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(12, 22);
+  screen.print("GAME OVER");
+
+  // Result text
+  screen.fillRect(0, 64, SCR_W, SCR_H - 64, COLOR_RGB565_BLACK);
+  screen.setTextWrap(true);
+  screen.setTextSize(2);
+  screen.setTextColor(COLOR_RGB565_YELLOW);
+  // centre horizontally
+  int textW = (int)strlen(resultLine) * 12;
+  int x = (SCR_W - textW) / 2;
+  if (x < 6)
+    x = 6;
+  screen.setCursor(x, 140);
+  screen.print(resultLine);
+  screen.setTextWrap(false);
+
+  displayStatusBar("Tap \"New Game\" to play again", bannerCol);
+}
+
+// ---------------------------------------------------------------------------
+// drawPiecePickedUp  — small overlay when a piece leaves its square
+// ---------------------------------------------------------------------------
+void drawPiecePickedUp(const char *squareName)
+{
+  static constexpr int BAN_Y = 42;
+  static constexpr int BAN_H = 18;
+  screen.fillRect(0, BAN_Y, SCR_W, BAN_H, 0xFD20); // orange
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  char buf[32];
+  snprintf(buf, sizeof(buf), "  Piece lifted: %s", squareName ? squareName : "?");
+  screen.setCursor(6, BAN_Y + 5);
+  screen.print(buf);
 }
 
 void drawErrorScreen(const char *title, const char *detail)
@@ -193,7 +357,8 @@ void drawDebugScreen(const char *const lines[], uint8_t count)
   uint8_t n = (count < MAX_VISIBLE) ? count : MAX_VISIBLE;
   for (uint8_t i = 0; i < n; i++)
   {
-    if (lines[i] == nullptr) break;
+    if (lines[i] == nullptr)
+      break;
     screen.setCursor(4, 22 + i * 14);
     screen.print(lines[i]);
   }
@@ -204,7 +369,9 @@ void drawDebugScreen(const char *const lines[], uint8_t count)
 // 4-bar signal strength indicator, 22px wide.
 static void drawSignalBars(int x, int y, int8_t rssi)
 {
-  int bars = (rssi > -60) ? 4 : (rssi > -70) ? 3 : (rssi > -80) ? 2 : 1;
+  int bars = (rssi > -60) ? 4 : (rssi > -70) ? 3
+                            : (rssi > -80)   ? 2
+                                             : 1;
   for (int i = 0; i < 4; i++)
   {
     int bx = x + i * 6;
@@ -217,15 +384,14 @@ static void drawSignalBars(int x, int y, int8_t rssi)
 void drawKeyboard(bool shifted, bool symbols)
 {
   // Character lookup: [row][col=0:lower, 1:upper, 2:symbols]
-  static const char* LUT[3][3] = {
-    { "qwertyuiop", "QWERTYUIOP", "1234567890" },
-    { "asdfghjkl",  "ASDFGHJKL",  "@#$%&-_+=" },
-    { "zxcvbnm",    "ZXCVBNM",    "!'\"();:"   }
-  };
-  int col    = symbols ? 2 : (shifted ? 1 : 0);
-  const char* row1 = LUT[0][col];
-  const char* row2 = LUT[1][col];
-  const char* row3 = LUT[2][col];
+  static const char *LUT[3][3] = {
+      {"qwertyuiop", "QWERTYUIOP", "1234567890"},
+      {"asdfghjkl", "ASDFGHJKL", "@#$%&-_+="},
+      {"zxcvbnm", "ZXCVBNM", "!'\"();:"}};
+  int col = symbols ? 2 : (shifted ? 1 : 0);
+  const char *row1 = LUT[0][col];
+  const char *row2 = LUT[1][col];
+  const char *row3 = LUT[2][col];
 
   // Keyboard background
   screen.fillRect(0, KB_ROW1_Y - 4, SCR_W,
@@ -236,22 +402,27 @@ void drawKeyboard(bool shifted, bool symbols)
   {
     int kx = KB_ROW1_X + i * KB_STRIDE;
     screen.fillRect(kx, KB_ROW1_Y, KB_STD_W, KB_KEY_H, (uint16_t)0x8410);
-    screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-    screen.setCursor(kx + 10, KB_ROW1_Y + 16); screen.print(row1[i]);
+    screen.setTextSize(1);
+    screen.setTextColor(COLOR_RGB565_WHITE);
+    screen.setCursor(kx + 10, KB_ROW1_Y + 16);
+    screen.print(row1[i]);
   }
   // Row 2 – 9 keys
   for (int i = 0; row2[i]; i++)
   {
     int kx = KB_ROW2_X + i * KB_STRIDE;
     screen.fillRect(kx, KB_ROW2_Y, KB_STD_W, KB_KEY_H, (uint16_t)0x8410);
-    screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-    screen.setCursor(kx + 10, KB_ROW2_Y + 16); screen.print(row2[i]);
+    screen.setTextSize(1);
+    screen.setTextColor(COLOR_RGB565_WHITE);
+    screen.setCursor(kx + 10, KB_ROW2_Y + 16);
+    screen.print(row2[i]);
   }
   // Row 3 – Shift/ABC + 7 keys + DEL
   screen.fillRect(0, KB_ROW3_Y, KB_SHIFT_W, KB_KEY_H,
                   symbols ? (uint16_t)0x4208
                           : (shifted ? COLOR_RGB565_BLUE : (uint16_t)0x4208));
-  screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
   screen.setCursor(4, KB_ROW3_Y + 16);
   screen.print(symbols ? "ABC" : (shifted ? "SFT" : "sft"));
 
@@ -259,75 +430,98 @@ void drawKeyboard(bool shifted, bool symbols)
   {
     int kx = KB_ROW3_LX + i * KB_STRIDE;
     screen.fillRect(kx, KB_ROW3_Y, KB_STD_W, KB_KEY_H, (uint16_t)0x8410);
-    screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-    screen.setCursor(kx + 10, KB_ROW3_Y + 16); screen.print(row3[i]);
+    screen.setTextSize(1);
+    screen.setTextColor(COLOR_RGB565_WHITE);
+    screen.setCursor(kx + 10, KB_ROW3_Y + 16);
+    screen.print(row3[i]);
   }
   screen.fillRect(KB_DEL_X, KB_ROW3_Y, KB_DEL_W, KB_KEY_H, (uint16_t)0x4208);
-  screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(KB_DEL_X + 14, KB_ROW3_Y + 16); screen.print("DEL");
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(KB_DEL_X + 14, KB_ROW3_Y + 16);
+  screen.print("DEL");
 
   // Row 4 – Sym toggle + Space + Done
   screen.fillRect(0, KB_ROW4_Y, KB_SYM_W, KB_KEY_H, (uint16_t)0x4208);
-  screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
   screen.setCursor(8, KB_ROW4_Y + 16);
   screen.print(symbols ? "ABC" : "?123");
 
   screen.fillRect(KB_SPACE_X, KB_ROW4_Y, KB_SPACE_W, KB_KEY_H, (uint16_t)0x8410);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(KB_SPACE_X + 60, KB_ROW4_Y + 16); screen.print("SPACE");
+  screen.setCursor(KB_SPACE_X + 60, KB_ROW4_Y + 16);
+  screen.print("SPACE");
 
   screen.fillRect(KB_DONE_X, KB_ROW4_Y, KB_DONE_W, KB_KEY_H, COLOR_RGB565_GREEN);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(KB_DONE_X + 10, KB_ROW4_Y + 16); screen.print("DONE");
+  screen.setCursor(KB_DONE_X + 10, KB_ROW4_Y + 16);
+  screen.print("DONE");
 }
 
-void drawPasswordField(const char* password, bool showChars)
+void drawPasswordField(const char *password, bool showChars)
 {
-  screen.fillRect(8,   72, 260, 38, (uint16_t)0xEF7D);
-  screen.drawRect(8,   72, 260, 38, COLOR_RGB565_BLACK);
-  screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_BLACK);
+  screen.fillRect(8, 72, 260, 38, (uint16_t)0xEF7D);
+  screen.drawRect(8, 72, 260, 38, COLOR_RGB565_BLACK);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_BLACK);
   screen.setCursor(12, 84);
-  if (showChars) {
+  if (showChars)
+  {
     screen.print(password);
-  } else {
-    for (int i = 0; password[i]; i++) screen.print('*');
+  }
+  else
+  {
+    for (int i = 0; password[i]; i++)
+      screen.print('*');
   }
   // Show / Hide toggle button
   screen.fillRect(272, 72, 44, 38, (uint16_t)0x6B4D);
-  screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(274, 84); screen.print(showChars ? "HIDE" : "SHOW");
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(274, 84);
+  screen.print(showChars ? "HIDE" : "SHOW");
 }
 
-void drawPasswordScreen(const char* ssid, const char* password,
+void drawPasswordScreen(const char *ssid, const char *password,
                         bool showChars, bool shifted, bool symbols)
 {
   displayClear();
   screen.fillRect(0, 0, SCR_W, 38, COLOR_RGB565_BLACK);
-  screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(6, 15); screen.print("< Back");
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(6, 15);
+  screen.print("< Back");
   displayCenteredText("Enter Password", 15, 1, COLOR_RGB565_WHITE);
   displayDivider(39, (uint16_t)0xC618);
 
-  screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_BLACK);
-  screen.setCursor(10, 48); screen.print("Network: ");
-  screen.setTextColor(COLOR_RGB565_BLUE); screen.print(ssid);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_BLACK);
+  screen.setCursor(10, 48);
+  screen.print("Network: ");
+  screen.setTextColor(COLOR_RGB565_BLUE);
+  screen.print(ssid);
 
   screen.setTextColor(COLOR_RGB565_BLACK);
-  screen.setCursor(10, 66); screen.print("Password:");
+  screen.setCursor(10, 66);
+  screen.print("Password:");
 
   drawPasswordField(password, showChars);
   drawKeyboard(shifted, symbols);
 }
 
-void drawWifiListScreen(const ScannedNetwork* nets, uint8_t count, bool scanning)
+void drawWifiListScreen(const ScannedNetwork *nets, uint8_t count, bool scanning)
 {
   displayClear();
   screen.fillRect(0, 0, SCR_W, 38, COLOR_RGB565_BLACK);
-  screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(6, 15); screen.print("< Back");
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(6, 15);
+  screen.print("< Back");
   displayCenteredText("WiFi Settings", 15, 1, COLOR_RGB565_WHITE);
   screen.fillRect(238, 4, 78, 30, (uint16_t)0x2945); // teal Rescan btn
-  screen.setCursor(248, 15); screen.print("Rescan");
+  screen.setCursor(248, 15);
+  screen.print("Rescan");
   displayDivider(39, (uint16_t)0xC618);
 
   if (scanning)
@@ -351,26 +545,34 @@ void drawWifiListScreen(const ScannedNetwork* nets, uint8_t count, bool scanning
                     (i % 2 == 0) ? COLOR_RGB565_WHITE : (uint16_t)0xF7BE);
     drawSignalBars(8, ry + 4, nets[i].rssi);
 
-    screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_BLACK);
+    screen.setTextSize(1);
+    screen.setTextColor(COLOR_RGB565_BLACK);
     screen.setCursor(36, ry + 8);
-    char truncated[22]; strncpy(truncated, nets[i].ssid, 21); truncated[21] = '\0';
+    char truncated[22];
+    strncpy(truncated, nets[i].ssid, 21);
+    truncated[21] = '\0';
     screen.print(truncated);
 
     screen.setTextColor((uint16_t)0x8410);
     screen.setCursor(36, ry + 26);
-    screen.print(nets[i].rssi); screen.print(" dBm");
+    screen.print(nets[i].rssi);
+    screen.print(" dBm");
 
     if (nets[i].saved)
     {
       screen.fillRect(274, ry + 12, 42, 18, COLOR_RGB565_GREEN);
-      screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-      screen.setCursor(276, ry + 17); screen.print("SAVED");
+      screen.setTextSize(1);
+      screen.setTextColor(COLOR_RGB565_WHITE);
+      screen.setCursor(276, ry + 17);
+      screen.print("SAVED");
     }
     else
     {
       screen.fillRect(278, ry + 12, 38, 18, COLOR_RGB565_BLUE);
-      screen.setTextSize(1); screen.setTextColor(COLOR_RGB565_WHITE);
-      screen.setCursor(282, ry + 17); screen.print("NEW");
+      screen.setTextSize(1);
+      screen.setTextColor(COLOR_RGB565_WHITE);
+      screen.setCursor(282, ry + 17);
+      screen.print("NEW");
     }
   }
 
@@ -382,40 +584,52 @@ void drawWifiListScreen(const ScannedNetwork* nets, uint8_t count, bool scanning
 
 char keyboardHitTest(int tx, int ty, bool symbols)
 {
-  static const char* ROW_LOWER[3] = { "qwertyuiop", "asdfghjkl", "zxcvbnm"   };
-  static const char* ROW_SYM[3]   = { "1234567890", "@#$%&-_+=", "!'\"();:" };
+  static const char *ROW_LOWER[3] = {"qwertyuiop", "asdfghjkl", "zxcvbnm"};
+  static const char *ROW_SYM[3] = {"1234567890", "@#$%&-_+=", "!'\"();:"};
 
   int row = -1;
-  if      (ty >= KB_ROW1_Y && ty < KB_ROW1_Y + KB_KEY_H) row = 0;
-  else if (ty >= KB_ROW2_Y && ty < KB_ROW2_Y + KB_KEY_H) row = 1;
-  else if (ty >= KB_ROW3_Y && ty < KB_ROW3_Y + KB_KEY_H) row = 2;
-  else if (ty >= KB_ROW4_Y && ty < KB_ROW4_Y + KB_KEY_H) row = 3;
-  else return 0;
+  if (ty >= KB_ROW1_Y && ty < KB_ROW1_Y + KB_KEY_H)
+    row = 0;
+  else if (ty >= KB_ROW2_Y && ty < KB_ROW2_Y + KB_KEY_H)
+    row = 1;
+  else if (ty >= KB_ROW3_Y && ty < KB_ROW3_Y + KB_KEY_H)
+    row = 2;
+  else if (ty >= KB_ROW4_Y && ty < KB_ROW4_Y + KB_KEY_H)
+    row = 3;
+  else
+    return 0;
 
   if (row == 0)
   {
     int idx = (tx - KB_ROW1_X) / KB_STRIDE;
-    if (tx < KB_ROW1_X || idx < 0 || idx > 9) return 0;
+    if (tx < KB_ROW1_X || idx < 0 || idx > 9)
+      return 0;
     return (symbols ? ROW_SYM : ROW_LOWER)[0][idx];
   }
   if (row == 1)
   {
-    const char* r = (symbols ? ROW_SYM : ROW_LOWER)[1];
+    const char *r = (symbols ? ROW_SYM : ROW_LOWER)[1];
     int idx = (tx - KB_ROW2_X) / KB_STRIDE;
-    if (tx < KB_ROW2_X || idx < 0 || idx >= (int)strlen(r)) return 0;
+    if (tx < KB_ROW2_X || idx < 0 || idx >= (int)strlen(r))
+      return 0;
     return r[idx];
   }
   if (row == 2)
   {
-    if (tx < KB_SHIFT_W)  return '\t'; // shift / ABC toggle
-    if (tx >= KB_DEL_X)   return '\b'; // backspace
-    const char* r = (symbols ? ROW_SYM : ROW_LOWER)[2];
+    if (tx < KB_SHIFT_W)
+      return '\t'; // shift / ABC toggle
+    if (tx >= KB_DEL_X)
+      return '\b'; // backspace
+    const char *r = (symbols ? ROW_SYM : ROW_LOWER)[2];
     int idx = (tx - KB_ROW3_LX) / KB_STRIDE;
-    if (tx < KB_ROW3_LX || idx < 0 || idx >= (int)strlen(r)) return 0;
+    if (tx < KB_ROW3_LX || idx < 0 || idx >= (int)strlen(r))
+      return 0;
     return r[idx];
   }
   // row == 3
-  if (tx < KB_SYM_W)   return 0x01; // symbols page toggle
-  if (tx >= KB_DONE_X) return '\n'; // Done
-  return ' ';                        // Space
+  if (tx < KB_SYM_W)
+    return 0x01; // symbols page toggle
+  if (tx >= KB_DONE_X)
+    return '\n'; // Done
+  return ' ';    // Space
 }

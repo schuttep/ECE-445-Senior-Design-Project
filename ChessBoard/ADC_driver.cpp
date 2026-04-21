@@ -87,7 +87,7 @@ void initADCs()
 
 void calibrateBaselines()
 {
-    Serial.println("Calibrating baselines... remove all pieces");
+    Serial0.println("Calibrating baselines... remove all pieces");
     delay(1000);
 
     for (int adc = 0; adc < NUM_ADCS; adc++)
@@ -103,16 +103,16 @@ void calibrateBaselines()
             }
             baseline[adc][ch] = (uint16_t)(sum / 20);
 
-            Serial.print("ADC");
-            Serial.print(adc);
-            Serial.print(" CH");
-            Serial.print(ch);
-            Serial.print(": ");
-            Serial.println(baseline[adc][ch]);
+            Serial0.print("ADC");
+            Serial0.print(adc);
+            Serial0.print(" CH");
+            Serial0.print(ch);
+            Serial0.print(": ");
+            Serial0.println(baseline[adc][ch]);
         }
     }
 
-    Serial.println("Calibration done");
+    Serial0.println("Calibration done");
 }
 
 void readBoardFEN(char *fenOut)

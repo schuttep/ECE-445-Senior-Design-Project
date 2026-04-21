@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <Wire.h>
+#include <WiFi.h>
 
 #include "headers.h"
 #include "display_driver.h"
@@ -9,6 +10,7 @@
 #include "LED_driver.h"
 #include "ADC_driver.h"
 #include "wifi_manager.h"
+#include "gameloop.h"
 
 #include "DFRobot_GDL.h"
 #include "DFRobot_Touch.h"
@@ -33,6 +35,17 @@ DFRobot_ST7365P_320x480_HW_SPI screen(SCR_DC, SCR_CS, SCR_RST, SCR_BLK);
 #define WIFI_BTN_W 260
 #define WIFI_BTN_H 70
 
+// Confirm / Cancel overlay shown when a local move awaits approval
+#define CONFIRM_BTN_X 20
+#define CONFIRM_BTN_Y 405
+#define CONFIRM_BTN_W 130
+#define CONFIRM_BTN_H 55
+
+#define CANCEL_BTN_X 170
+#define CANCEL_BTN_Y 405
+#define CANCEL_BTN_W 130
+#define CANCEL_BTN_H 55
+
 // ===================== STATE =====================
 enum ScreenState
 {
@@ -43,12 +56,22 @@ enum ScreenState
   WIFI_PASS_SCREEN
 };
 ScreenState currentScreen = MENU;
-String currentFEN = "";
 bool wifiConnected = false;
 unsigned long menuShownAt = 0;
-unsigned long lastFENPoll = 0;
-const unsigned long FEN_POLL_INTERVAL = 5000;
 unsigned long lastBoardTestUpdate = 0;
+
+// Game screen display tracking
+static String gs_lastRenderedFEN;
+static bool gs_lastConfirmState = false;
+static bool gs_lastGameOver = false;
+static bool gs_lastCheckState = false;
+static String gs_lastIncomingFEN;
+static String gs_lastPendingFEN;
+static char gs_liftSquare[3] = {0};
+static bool gs_liftShown = false;
+
+// Physical board FEN buffer (72 bytes = worst-case FEN board + null)
+static char gs_boardFENBuf[72];
 
 // WiFi manager UI state
 ScannedNetwork scannedNets[WM_MAX_SCAN];
@@ -62,6 +85,7 @@ bool kbShowChars = false;
 // ===================== FORWARD DECLARATIONS =====================
 void showMenuScreen();
 void showGameScreen();
+void drawConfirmOverlay();
 void showWifiListScreen();
 void showWifiPassScreen(const char *ssid);
 void handleWifiListTouch(int tx, int ty);
@@ -86,19 +110,29 @@ void showMenuScreen()
 void showGameScreen()
 {
   currentScreen = GAME;
+  gs_lastRenderedFEN = "";
+  gs_lastConfirmState = false;
+  gs_lastGameOver = false;
+  gs_lastCheckState = false;
+  gs_lastIncomingFEN = "";
+  gs_lastPendingFEN = "";
+  gs_liftSquare[0] = 0;
+  gs_liftShown = false;
 
-  screen.fillScreen(COLOR_RGB565_WHITE);
-  screen.setTextSize(1);
-  screen.setTextColor(COLOR_RGB565_BLACK);
-  screen.setCursor(60, 230);
-  screen.print("Connecting to game...");
+  // Show a placeholder board while the FSM initialises
+  drawGameScreen(wifiConnected, false, String("Starting game..."));
 
-  lastFENPoll = millis();
-  ApiResult result = fetchLatestFEN();
-  if (result.ok)
-    currentFEN = result.data;
-  lightFEN(currentFEN.c_str());
-  drawGameScreen(wifiConnected, result.ok, result.ok ? currentFEN : result.data);
+  // Kick off the FSM — it will drive everything from here
+  cgm_startGameNow();
+}
+
+// Draw confirm / cancel buttons as an overlay on the game screen.
+void drawConfirmOverlay()
+{
+  displayButton(CONFIRM_BTN_X, CONFIRM_BTN_Y, CONFIRM_BTN_W, CONFIRM_BTN_H,
+                COLOR_RGB565_GREEN, "Confirm");
+  displayButton(CANCEL_BTN_X, CANCEL_BTN_Y, CANCEL_BTN_W, CANCEL_BTN_H,
+                COLOR_RGB565_RED, "Cancel");
 }
 
 void showWifiListScreen()
@@ -304,6 +338,41 @@ void handleTouch()
       return;
     }
   }
+  else if (currentScreen == GAME)
+  {
+    // Back button (top-left header area)
+    if (ty < 38 && tx < 80)
+    {
+      cgm_resetManager();
+      showMenuScreen();
+      return;
+    }
+
+    // If the game-over screen is up, any tap requests a new game
+    if (gs_lastGameOver)
+    {
+      cgm_requestNewGame();
+      gs_lastGameOver = false;
+      showGameScreen();
+      return;
+    }
+
+    if (cgm_isConfirming())
+    {
+      if (tx >= CONFIRM_BTN_X && tx <= CONFIRM_BTN_X + CONFIRM_BTN_W &&
+          ty >= CONFIRM_BTN_Y && ty <= CONFIRM_BTN_Y + CONFIRM_BTN_H)
+      {
+        cgm_confirmPendingMove();
+        return;
+      }
+      if (tx >= CANCEL_BTN_X && tx <= CANCEL_BTN_X + CANCEL_BTN_W &&
+          ty >= CANCEL_BTN_Y && ty <= CANCEL_BTN_Y + CANCEL_BTN_H)
+      {
+        cgm_cancelPendingMove();
+        return;
+      }
+    }
+  }
   else if (currentScreen == BOARD_TEST)
   {
     showMenuScreen();
@@ -333,7 +402,7 @@ void setupDisplayHardware()
 // ===================== SETUP =====================
 void setup()
 {
-  Serial.begin(115200);
+  Serial0.begin(115200);
   delay(1000);
 
   setupDisplayHardware();
@@ -341,6 +410,9 @@ void setup()
   initLEDs();
   initADCs();
   calibrateBaselines();
+
+  // Initialise game FSM (idle, no game started)
+  cgm_setup();
 
   drawConnectingScreen(WIFI_SSID);
   // 1. Try all NVS-saved networks first
@@ -431,16 +503,132 @@ void loop()
 
   if (currentScreen == GAME)
   {
-    if (now - lastFENPoll >= FEN_POLL_INTERVAL)
+    // Refresh WiFi status each frame so display reflects reconnects
+    bool wifiNow = (WiFi.status() == WL_CONNECTED);
+
+    // 1. Read physical board state and feed it to the FSM
+    readBoardFEN(gs_boardFENBuf);
+    cgm_setPhysicalBoardFEN(String(gs_boardFENBuf));
+
+    // 2. Tick the game FSM
+    cgm_tick();
+
+    // ----------------------------------------------------------------
+    // 3. Game-over screen (highest priority — drawn once, stays up)
+    // ----------------------------------------------------------------
+    if (cgm_isGameOver() && !gs_lastGameOver)
     {
-      lastFENPoll = now;
-      ApiResult result = fetchLatestFEN();
-      if (result.ok && result.data != currentFEN)
+      gs_lastGameOver = true;
+      drawGameOverScreen(cgm_getGameResultString().c_str());
+      return; // nothing else to draw this frame
+    }
+    if (gs_lastGameOver)
+      return; // keep showing the game-over screen
+
+    // ----------------------------------------------------------------
+    // 4. Detect piece lift (piece picked up, not yet placed)
+    // ----------------------------------------------------------------
+    char liftSq[3] = {0};
+    bool liftDetected = cgm_getPieceLiftSquare(liftSq);
+    if (liftDetected && (liftSq[0] != gs_liftSquare[0] ||
+                         liftSq[1] != gs_liftSquare[1]))
+    {
+      gs_liftSquare[0] = liftSq[0];
+      gs_liftSquare[1] = liftSq[1];
+      gs_liftSquare[2] = 0;
+      gs_liftShown = false; // force redraw of overlay
+    }
+
+    // ----------------------------------------------------------------
+    // 5. Redraw full board when committed FEN changes
+    // ----------------------------------------------------------------
+    const String &committedFEN = cgm_getCommittedFEN();
+    const String &incomingFEN = cgm_getIncomingFEN();
+    const String &pendingFEN = cgm_getPendingFEN();
+    bool isConfirming = cgm_isConfirming();
+    bool inCheck = cgm_isInCheck();
+
+    bool boardChanged = (committedFEN != gs_lastRenderedFEN);
+    bool incomingChanged = (incomingFEN != gs_lastIncomingFEN);
+    bool pendingChanged = (pendingFEN != gs_lastPendingFEN);
+
+    if (boardChanged || incomingChanged || pendingChanged)
+    {
+      gs_lastRenderedFEN = committedFEN;
+      gs_lastIncomingFEN = incomingFEN;
+      gs_lastPendingFEN = pendingFEN;
+      gs_lastConfirmState = false;
+      gs_lastCheckState = false;
+      gs_liftShown = false;
+
+      // Show move highlight if we have a before/after pair
+      if (incomingFEN.length() > 0)
       {
-        currentFEN = result.data;
-        lightFEN(currentFEN.c_str());
-        drawGameScreen(wifiConnected, true, currentFEN);
+        // Remote move being applied — highlight on screen
+        drawGameScreenWithMove(wifiNow, committedFEN, incomingFEN);
       }
+      else if (pendingFEN.length() > 0 && committedFEN.length() > 0)
+      {
+        // Local move validated, awaiting confirmation
+        drawGameScreenWithMove(wifiNow, committedFEN, pendingFEN);
+      }
+      else
+      {
+        bool fenValid = committedFEN.length() > 0;
+        drawGameScreen(wifiNow, fenValid,
+                       fenValid ? committedFEN : String("Waiting for game..."));
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // 6. Piece-lift overlay (drawn on top of the board without full redraw)
+    // ----------------------------------------------------------------
+    if (liftDetected && !gs_liftShown)
+    {
+      gs_liftShown = true;
+      drawPiecePickedUp(gs_liftSquare);
+    }
+    else if (!liftDetected && gs_liftShown)
+    {
+      // Piece was placed — clear the overlay by redrawing the board
+      gs_liftShown = false;
+      gs_liftSquare[0] = 0;
+      bool fenValid = committedFEN.length() > 0;
+      drawGameScreen(wifiNow, fenValid,
+                     fenValid ? committedFEN : String("Waiting for game..."));
+    }
+
+    // ----------------------------------------------------------------
+    // 7. Check alert banner (drawn on top of board)
+    // ----------------------------------------------------------------
+    if (inCheck && !gs_lastCheckState)
+    {
+      gs_lastCheckState = true;
+      drawCheckAlert(cgm_isWhiteToMove()); // the side to move is in check
+    }
+    else if (!inCheck && gs_lastCheckState)
+    {
+      // Check resolved — redraw without banner
+      gs_lastCheckState = false;
+      bool fenValid = committedFEN.length() > 0;
+      drawGameScreen(wifiNow, fenValid,
+                     fenValid ? committedFEN : String("Waiting for game..."));
+    }
+
+    // ----------------------------------------------------------------
+    // 8. Confirm / Cancel overlay
+    // ----------------------------------------------------------------
+    if (isConfirming && !gs_lastConfirmState)
+    {
+      gs_lastConfirmState = true;
+      drawConfirmOverlay();
+    }
+    else if (!isConfirming && gs_lastConfirmState)
+    {
+      gs_lastConfirmState = false;
+      bool fenValid = committedFEN.length() > 0;
+      drawGameScreen(wifiNow, fenValid,
+                     fenValid ? committedFEN : String("Waiting for game..."));
     }
   }
 

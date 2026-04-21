@@ -51,8 +51,11 @@ void updateCastlingFlags(char before[8][8],
 bool hasAnyLegalMove(char board[8][8], bool whiteToMove, const bool castling[4]);
 
 // Main validator
+// enPassantSquare: en-passant target square in algebraic notation (e.g. "e3"),
+// or nullptr / empty string if en passant is not available this move.
 String validateMoveAndReturnFEN(const String &beforeFEN,
                                 const String &afterFEN,
                                 bool whiteToMove,
                                 const bool castling[4],
-                                char promotionPiece);
+                                char promotionPiece,
+                                const char *enPassantSquare = nullptr);

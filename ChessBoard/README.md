@@ -1,7 +1,330 @@
-# ChessBoard — Peripheral & API Reference
+# ChessBoard
 
-Hardware platform: **ESP32-S3** running Arduino.  
-The board reads magnetic chess pieces via 8 hall-effect ADC chips, lights 64 WS2812B LEDs under the squares, drives a 320×480 IPS touchscreen, and syncs game state with a cloud REST API over HTTPS.
+An ESP32-S3 Arduino project that turns a physical chess board into a networked, two-player game system. Magnetic hall-effect sensors detect piece positions, a 320×480 IPS touchscreen drives the UI and game feedback, and a cloud REST API over HTTPS synchronises moves between two boards in real time.
+
+---
+
+## How It Works
+
+### Hardware
+
+| Component | Details |
+|---|---|
+| Microcontroller | ESP32-S3 |
+| Piece detection | 8× ADS7128 I²C ADC chips, one per rank, reading hall-effect sensors under each square |
+| Display | 320×480 IPS (DFRobot ST7365P), SPI |
+| Touch | GT911 capacitive controller, I²C |
+| LEDs | 64× WS2812B NeoPixel strip (wired snake pattern) — present but not used for game events |
+
+### Software Architecture
+
+The firmware is structured around a **Finite State Machine (FSM)** in `gameloop.cpp` that acts as the central game controller. `ChessBoard.ino` owns `setup()` and `loop()` and delegates everything to the FSM.
+
+```
+loop()
+  │
+  ├─ readBoardFEN()          ← ADC driver reads all 64 squares
+  ├─ cgm_setPhysicalBoardFEN() ← feeds raw board state into the FSM
+  ├─ cgm_tick()              ← advances the FSM
+  └─ display update          ← screen redraws driven by FSM state queries
+```
+
+### Game Flow
+
+1. **Menu** — player taps "Join Game"
+2. **FSM initialises** — committed FEN set to the starting position
+3. **Local turn** — FSM waits for the physical board to differ from the committed FEN by a legal move (piece stable for 600 ms), then shows the move highlighted on screen and waits for the player to tap **Confirm** or **Cancel**
+4. **Send** — confirmed move POSTed to the API; committed FEN updated
+5. **Opponent turn** — FSM polls the API every 2 s; when a new FEN arrives it is shown on screen with the move highlighted and the player is prompted to replicate it on the physical board
+6. **Game end** — checkmate or stalemate detected; full-screen game-over panel shown; tap to start a new game
+
+---
+
+## File Structure
+
+| File | Purpose |
+|---|---|
+| `ChessBoard.ino` | `setup()` / `loop()`, touch handling, screen state machine |
+| `gameloop.h/.cpp` | Chess game FSM — the main game controller |
+| `gamelogic.h/.cpp` | Pure chess rules engine (move validation, check, castling, stalemate) |
+| `display_driver.h/.cpp` | All screen drawing functions |
+| `ADC_driver.h/.cpp` | ADS7128 I²C ADC driver; reads board FEN |
+| `LED_driver.h/.cpp` | WS2812B NeoPixel driver (hardware present; game events use screen only) |
+| `api_connect.h/.cpp` | HTTPS REST client for the game server |
+| `wifi_driver.h/.cpp` | Boot-time WiFi helper |
+| `wifi_manager.h/.cpp` | NVS-backed multi-network manager + on-screen WiFi UI |
+| `headers.h` | Pin definitions and shared colour constants |
+| `secrets.h` | `WIFI_SSID` / `WIFI_PASS` — **gitignored, do not commit** |
+
+---
+
+## Pin Definitions (`headers.h`)
+
+| Constant | Pin | Purpose |
+|---|---|---|
+| `LED_PIN` | 6 | NeoPixel data line |
+| `SDA_DAQ` | 38 | I²C SDA for ADC chips |
+| `SCL_DAQ` | 39 | I²C SCL for ADC chips |
+| `SCR_SCLK` | 45 | Screen SPI clock |
+| `SCR_MOSI` | 48 | Screen SPI MOSI |
+| `SCR_MISO` | 47 | Screen SPI MISO |
+| `SCR_CS` | 21 | Screen SPI chip-select |
+| `SCR_RST` | 14 | Screen reset |
+| `SCR_DC` | 13 | Screen data/command |
+| `SCR_BLK` | 12 | Screen backlight |
+| `SCR_I2C_SCL` | 11 | Touchscreen I²C SCL |
+| `SCR_I2C_SDA` | 10 | Touchscreen I²C SDA |
+| `SCR_INT` | 9 | Touchscreen interrupt |
+| `SCR_TCH_RST` | 8 | Touchscreen reset |
+
+---
+
+## Game FSM (`gameloop.h/.cpp`)
+
+The FSM is the heart of the system. `ChessBoard.ino` calls `cgm_tick()` every loop iteration and queries FSM state to decide what to draw.
+
+### States
+
+| State | Description |
+|---|---|
+| `CGM_WAIT_FOR_GAME_START` | Idle, waiting for `cgm_startGameNow()` |
+| `CGM_GAME_INITIALIZATION` | Resets board and turn state |
+| `CGM_LOCAL_TURN_WAIT_FOR_BOARD` | Waiting for a stable physical board change |
+| `CGM_LOCAL_TURN_VALIDATE` | Validates the detected move against chess rules |
+| `CGM_LOCAL_TURN_CONFIRM` | Waiting for the player to tap Confirm or Cancel |
+| `CGM_SEND_STATE` | POSTing the new FEN to the API |
+| `CGM_WAIT_FOR_REMOTE_MOVE` | Polling the API for the opponent's move |
+| `CGM_APPLY_REMOTE_MOVE` | Waiting for the player to replicate the opponent's move physically |
+| `CGM_GAME_END` | Game over (checkmate or stalemate) |
+| `CGM_ERROR_STATE` | Unrecoverable FSM error |
+
+### Key Configuration (`CGMConfig` namespace)
+
+| Constant | Default | Description |
+|---|---|---|
+| `POLL_INTERVAL_MS` | 2000 | How often to poll the API for opponent moves |
+| `LOCAL_STABLE_TIME_MS` | 600 | How long a board position must be stable before it is accepted |
+| `WIFI_RETRY_INTERVAL_MS` | 5000 | WiFi reconnect attempt interval |
+| `GAME_ID` | 1 | API game identifier |
+| `BOARD_NUMBER` | 1 | Physical board number sent to the API |
+| `LOCAL_IS_WHITE` | `true` | Set to `false` if this board plays black |
+| `DEFAULT_PROMOTION` | `'Q'` | Promotion piece used when no UI prompt is available |
+
+### Control Functions
+
+```cpp
+cgm_setup();               // Call once in setup() after hardware init
+cgm_tick();                // Call every loop() while GAME screen is active
+cgm_setPhysicalBoardFEN(fen); // Feed ADC board reading into the FSM
+cgm_startGameNow();        // Start a game
+cgm_resetManager();        // Reset FSM to idle
+cgm_requestNewGame();      // Restart from game-over state
+cgm_confirmPendingMove();  // Confirm the move awaiting approval
+cgm_cancelPendingMove();   // Cancel the move awaiting approval
+cgm_setPromotionPiece('Q'); // Choose promotion piece
+```
+
+### State Query Functions
+
+```cpp
+cgm_isConfirming()         // true while waiting for Confirm/Cancel tap
+cgm_isWaitingForRemote()   // true while polling for opponent move
+cgm_isGameOver()           // true when in GAME_END state
+cgm_isWhiteToMove()        // whose turn it is
+cgm_isInCheck()            // true if current player's king is in check
+cgm_getCommittedFEN()      // last fully accepted board FEN
+cgm_getPendingFEN()        // candidate FEN awaiting confirmation
+cgm_getIncomingFEN()       // remote move FEN while being applied
+cgm_getGameResultString()  // e.g. "White wins by checkmate"
+cgm_getPieceLiftSquare(sq) // detects single piece lift; fills sq e.g. "e2"
+```
+
+---
+
+## Display Driver (`display_driver.h/.cpp`)
+
+### Screen Layout
+
+```
+y=0  ┌─────────────────────────────┐
+     │  Header: title + WiFi status │  38 px
+y=38 ├─────────────────────────────┤
+     │                             │
+     │   Main content area         │
+     │   (board grid / menus)      │
+     │                             │
+y=458├─────────────────────────────┤
+     │  Status bar                 │  22 px
+y=480└─────────────────────────────┘
+```
+
+### Game Screen Variants
+
+#### `drawGameScreen(wifiConnected, fenOk, data)`
+Base board view. `fenOk=true` renders `data` as a FEN character grid; `fenOk=false` shows `data` as a message.
+
+#### `drawGameScreenWithMove(wifiConnected, beforeFEN, afterFEN)`
+Same as above but highlights the move:
+- **Yellow** background on the source square (piece lifted from here)
+- **Green** background on the destination square (piece placed here)
+
+Called automatically by `ChessBoard.ino` whenever a local or remote move changes the board.
+
+#### `drawCheckAlert(whiteInCheck)`
+Draws a **yellow banner** between the header and the board reading `!! WHITE IS IN CHECK !!` or `!! BLACK IS IN CHECK !!`. Overlaid without redrawing the full board.
+
+#### `drawGameOverScreen(resultLine)`
+Full black-background panel shown when the game ends:
+- Red banner for checkmate, grey for draws/stalemate
+- Large **GAME OVER** heading
+- Result text centred on screen (e.g. "White wins by checkmate")
+- Status bar: "Tap to play again"
+
+Tapping anywhere restarts the game.
+
+#### `drawPiecePickedUp(squareName)`
+**Orange banner** shown the instant the ADC detects a piece lifted off the board (e.g. `Piece lifted: e2`). Clears automatically when the piece is placed back down or on a new square.
+
+### Other Screens
+
+| Function | Description |
+|---|---|
+| `drawMenuScreen(wifiConnected)` | Main menu background; add buttons with `displayButton()` |
+| `drawConnectingScreen(ssid)` | WiFi connecting splash |
+| `drawErrorScreen(title, detail)` | Full-screen red error panel |
+| `drawDebugScreen(lines, count)` | Black terminal-style diagnostic screen |
+| `drawWifiListScreen(nets, count, scanning)` | Scanned network list |
+| `drawPasswordScreen(...)` | On-screen QWERTY password entry |
+
+### Primitives
+
+| Function | Description |
+|---|---|
+| `displayClear()` | Fill screen white |
+| `displayHeader(wifiConnected)` | Title bar + WiFi status + divider |
+| `displayButton(x, y, w, h, color, label)` | Filled labelled button |
+| `displayStatusBar(msg, bgColor)` | 22 px bar at bottom of screen |
+| `displayCenteredText(text, y, size, color)` | Horizontally centred text |
+| `displayDivider(y, color)` | Full-width horizontal line |
+
+---
+
+## ADC Driver (`ADC_driver.h/.cpp`)
+
+Drives 8× **ADS7128** I²C ADC chips (one per rank, addresses `0x10`–`0x17`). Each chip reads 8 hall-effect sensor channels, giving 64 measurements total.
+
+```cpp
+initADCs();           // Call once in setup()
+calibrateBaselines(); // Call with NO pieces on board; stores resting values
+readBoardFEN(fenOut); // Reads all 64 squares, writes Modified FEN into fenOut (72 bytes)
+```
+
+**Modified FEN** (output of `readBoardFEN`):
+
+| Char | Meaning |
+|---|---|
+| `P` | N-pole magnet detected |
+| `p` | S-pole magnet detected |
+| `1`–`8` | Run of empty squares |
+| `/` | Rank separator |
+
+Detection threshold: ±300 ADC counts from baseline.
+
+---
+
+## API Connect (`api_connect.h/.cpp`)
+
+HTTPS REST client. TLS is validated with the Amazon Root CA 1 certificate bundled in the source (valid until 2038-01-17).
+
+**Endpoint:** `https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/moves`
+
+```cpp
+struct ApiResult { bool ok; String data; };
+
+ApiResult fetchLatestFEN();
+// GET — returns FEN from the last entry in the `moves` array
+
+ApiResult pushFENState(fen, isWhite, gameId, boardNum);
+// POST — sends { game_id, board_number, fen, player_color, mac_address }
+```
+
+---
+
+## Game Logic (`gamelogic.h/.cpp`)
+
+Pure C++ chess rules engine. Stateless — all functions take boards/arrays by pointer.
+
+**Board representation:** `char[8][8]`, row 0 = rank 8, col 0 = file a, `'.'` = empty, uppercase = white, lowercase = black.
+
+**Castling rights:** `bool castling[4]` — indices 0=white K-side, 1=white Q-side, 2=black K-side, 3=black Q-side.
+
+### Main Entry Point
+
+```cpp
+String validateMoveAndReturnFEN(
+    beforeFEN, afterFEN, whiteToMove, castling, promotionPiece);
+// Returns afterFEN if the move is legal, "Invalid Move" otherwise.
+// Handles ordinary moves, pawn promotion, and all four castling variants.
+```
+
+### Other Key Functions
+
+```cpp
+parseFENBoard(fen, board)         // Parse FEN string into char[8][8]
+isKingInCheck(board, whiteKing)  // Check detection
+hasAnyLegalMove(board, white, castling) // Checkmate/stalemate detection
+canCastle(board, white, kingSide, castling)
+```
+
+---
+
+## WiFi Manager (`wifi_manager.h/.cpp`)
+
+Stores up to **5 networks** in ESP32 NVS. Credentials are never hardcoded.
+
+```cpp
+wmConnectBoot()                     // Try all saved networks; returns true on success
+wmConnect(ssid, pass)               // Connect to a specific network
+wmScan(nets)                        // Scan nearby networks (~2–3 s blocking)
+wmSaveNetwork(ssid, pass)           // Persist credentials to NVS
+wmGetSavedPass(ssid, passOut)       // Retrieve saved password
+```
+
+Boot sequence in `setup()`:
+1. Try all NVS-saved networks (`wmConnectBoot`)
+2. Fall back to `secrets.h` credentials; save on success
+3. If still unconnected, show the WiFi scan/selection screen
+
+---
+
+## LED Driver (`LED_driver.h/.cpp`)
+
+Controls a 64-pixel WS2812B strip. The hardware is present and initialised but **game events (check, win, move) are shown on the touchscreen only**.
+
+```cpp
+initLEDs();       // Initialise strip, brightness 40/255
+demoSequence();   // Startup wiring test (even then odd pixels)
+testLEDs();       // Flash all green ~800 ms; returns pixel count
+clearLEDs();      // Clear buffer (call showLEDs() to push)
+showLEDs();       // Push buffer to strip
+```
+
+---
+
+## Secrets
+
+Create `secrets.h` in the project root (it is gitignored):
+
+```cpp
+#ifndef SECRETS_H
+#define SECRETS_H
+#define WIFI_SSID "your_network_name"
+#define WIFI_PASS "your_password"
+#endif
+```
+
+Alternatively, leave the file with placeholder values and use the on-screen WiFi settings menu to connect — credentials will be saved to NVS automatically.
+
 
 ---
 

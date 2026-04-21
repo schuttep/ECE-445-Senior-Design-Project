@@ -6,7 +6,7 @@
 // ===================== WIFI / API =====================
 bool connectWifi()
 {
-  Serial.print("Connecting to WiFi");
+  Serial0.print("Connecting to WiFi");
 
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -15,20 +15,20 @@ bool connectWifi()
   while (WiFi.status() != WL_CONNECTED && tries < 40)
   {
     delay(500);
-    Serial.print(".");
+    Serial0.print(".");
     tries++;
   }
 
-  Serial.println();
+  Serial0.println();
 
   if (WiFi.status() == WL_CONNECTED)
   {
-    Serial.println("Connected!");
-    Serial.print("IP: ");
-    Serial.println(WiFi.localIP());
+    Serial0.println("Connected!");
+    Serial0.print("IP: ");
+    Serial0.println(WiFi.localIP());
     return true;
   }
 
-  Serial.println("WiFi failed");
+  Serial0.println("WiFi failed");
   return false;
 }

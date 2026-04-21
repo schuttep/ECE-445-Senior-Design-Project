@@ -44,6 +44,24 @@ void drawMenuScreen(bool wifiConnected);
 // fenOk=false -> data is an error message shown as plain text.
 void drawGameScreen(bool wifiConnected, bool fenOk, const String &data);
 
+// Game screen with move highlight:
+//   beforeFEN  — the board before the move (source square shown in yellow)
+//   afterFEN   — the board after the move  (dest square shown in green)
+// Pass empty strings for either to skip highlighting.
+void drawGameScreenWithMove(bool wifiConnected,
+                            const String &beforeFEN,
+                            const String &afterFEN);
+
+// Overlay a yellow "in check!" banner over the current game screen.
+void drawCheckAlert(bool whiteInCheck);
+
+// Full-screen game-over panel (checkmate or stalemate).
+void drawGameOverScreen(const char *resultLine);
+
+// Small overlay shown as soon as a piece leaves a square
+// (piece has been picked up and is in the air).
+void drawPiecePickedUp(const char *squareName);
+
 // Full-screen error display: red banner, bold title, wrapped detail text.
 void drawErrorScreen(const char *title, const char *detail);
 
