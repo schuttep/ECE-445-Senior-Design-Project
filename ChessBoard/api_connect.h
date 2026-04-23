@@ -12,6 +12,17 @@ struct ApiResult
 // Fetch the latest FEN from the server (GET most recent move).
 ApiResult fetchLatestFEN();
 
+// Fetch the current game state: latest board FEN and whose turn it is.
+// whiteToMove is derived from the number of moves recorded (even = white, odd = black).
+// Returns ok=false with an empty FEN when no moves have been recorded yet.
+struct GameStateResult
+{
+    bool ok;
+    String fen;
+    bool whiteToMove; // true = white to move next
+};
+GameStateResult fetchGameState();
+
 // Post a move as FEN + move notation (legacy simple endpoint).
 ApiResult pushLatestFEN(const String &move, const String &fen);
 

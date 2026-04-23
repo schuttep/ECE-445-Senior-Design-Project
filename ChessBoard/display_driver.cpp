@@ -4,10 +4,21 @@
 extern DFRobot_ST7365P_320x480_HW_SPI screen;
 
 // ── Layout constants ──────────────────────────────────────────────────────────
-static constexpr int SCR_W = 320;
-static constexpr int SCR_H = 480;
-static constexpr int STATUS_Y = 458; // y-start of bottom status bar
+static constexpr int SCR_W = 480;
+static constexpr int SCR_H = 320;
+static constexpr int STATUS_Y = 298; // y-start of bottom status bar (SCR_H - STATUS_H)
 static constexpr int STATUS_H = 22;  // height of status bar
+
+// Chess-board geometry (landscape game screen)
+static constexpr int BOARD_X = 8;            // left edge of the board
+static constexpr int BOARD_Y = 40;           // top edge of the board
+static constexpr int CELL_SIZE = 32;         // 8 × 32 = 256 px per side
+static constexpr uint16_t SQ_LIGHT = 0xFFDF; // cream
+static constexpr uint16_t SQ_DARK = 0x8C51;  // medium brown
+
+// Right info panel next to the board
+static constexpr int RPANEL_X = BOARD_X + 8 * CELL_SIZE + 8; // = 272
+static constexpr int RPANEL_W = SCR_W - RPANEL_X - 8;        // = 200
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
@@ -42,41 +53,36 @@ static bool fenToBoard(const String &fen, char board[8][8])
   return (r == 7);
 }
 
-// Render the piece-placement section of a FEN string as a character grid.
-static void drawFENRows(const String &fen, int startX, int startY)
+// Render a board-only FEN as a proper 8×8 chessboard with coloured squares.
+// Piece characters are drawn size-2 (12×16 px) centred in each cell.
+static void drawFENBoard(const String &fen, int boardX, int boardY, int cellSize)
 {
-  screen.setTextSize(1);
-  screen.setTextColor(COLOR_RGB565_BLACK);
+  char board[8][8];
+  for (int r = 0; r < 8; r++)
+    for (int c = 0; c < 8; c++)
+      board[r][c] = '.';
+  fenToBoard(fen, board);
 
-  int x = startX;
-  int y = startY;
-
-  for (int i = 0; i < (int)fen.length(); i++)
+  for (int r = 0; r < 8; r++)
   {
-    char c = fen[i];
-    if (c == ' ')
-      break;
-    if (c == '/')
+    for (int c = 0; c < 8; c++)
     {
-      y += 22;
-      x = startX;
-      continue;
-    }
-    if (c >= '1' && c <= '8')
-    {
-      int count = c - '0';
-      for (int j = 0; j < count; j++)
+      int px = boardX + c * cellSize;
+      int py = boardY + r * cellSize;
+      bool light = ((r + c) % 2 == 0);
+      screen.fillRect(px, py, cellSize, cellSize, light ? SQ_LIGHT : SQ_DARK);
+      if (board[r][c] != '.')
       {
-        screen.setCursor(x, y);
-        screen.print('.');
-        x += 14;
+        screen.setTextSize(2);
+        screen.setTextColor(light ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE);
+        // size-2 glyph: 12 × 16 px → centre in the cell
+        screen.setCursor(px + (cellSize - 12) / 2, py + (cellSize - 16) / 2);
+        screen.print(board[r][c]);
       }
-      continue;
     }
-    screen.setCursor(x, y);
-    screen.print(c);
-    x += 14;
   }
+  screen.drawRect(boardX - 1, boardY - 1, 8 * cellSize + 2, 8 * cellSize + 2,
+                  COLOR_RGB565_BLACK);
 }
 
 // ── Primitives ────────────────────────────────────────────────────────────────
@@ -93,7 +99,7 @@ void displayHeader(bool wifiConnected)
   screen.setCursor(20, 20);
   screen.print("ChessBoard");
 
-  screen.setCursor(200, 20);
+  screen.setCursor(360, 20);
   screen.print(wifiConnected ? "WiFi: OK" : "WiFi: --");
 
   screen.drawFastHLine(0, 38, SCR_W, COLOR_RGB565_BLACK);
@@ -140,15 +146,16 @@ void displayDivider(int y, uint16_t color)
 void initDisplay()
 {
   screen.begin();
+  screen.setRotation(1); // landscape: right side of PCB is now the bottom
   screen.setTextWrap(false);
 }
 
 void drawConnectingScreen(const char *ssid)
 {
   displayClear();
-  displayCenteredText("ChessBoard", 130, 3, COLOR_RGB565_BLACK);
-  displayCenteredText("Connecting to WiFi...", 192, 1, COLOR_RGB565_BLACK);
-  displayCenteredText(ssid, 212, 1, COLOR_RGB565_BLUE);
+  displayCenteredText("ChessBoard", 96, 3, COLOR_RGB565_BLACK);
+  displayCenteredText("Connecting to WiFi...", 156, 1, COLOR_RGB565_BLACK);
+  displayCenteredText(ssid, 176, 1, COLOR_RGB565_BLUE);
   displayStatusBar("Please wait...", COLOR_RGB565_BLUE);
 }
 
@@ -156,7 +163,7 @@ void drawMenuScreen(bool wifiConnected)
 {
   displayClear();
   displayHeader(wifiConnected);
-  displayCenteredText("Chess Board", 120, 2, COLOR_RGB565_BLACK);
+  displayCenteredText("Chess Board", 58, 2, COLOR_RGB565_BLACK);
 }
 
 void drawGameScreen(bool wifiConnected, bool fenOk, const String &data)
@@ -164,18 +171,24 @@ void drawGameScreen(bool wifiConnected, bool fenOk, const String &data)
   displayClear();
   displayHeader(wifiConnected);
 
-  screen.setTextSize(1);
-  screen.setTextColor(COLOR_RGB565_BLACK);
-  screen.setCursor(20, 50);
-  screen.print("Board:");
-
   if (fenOk)
-    drawFENRows(data, 20, 75);
+  {
+    drawFENBoard(data, BOARD_X, BOARD_Y, CELL_SIZE);
+  }
   else
   {
-    screen.setCursor(20, 75);
+    // Placeholder board outline
+    screen.drawRect(BOARD_X - 1, BOARD_Y - 1, 8 * CELL_SIZE + 2, 8 * CELL_SIZE + 2,
+                    COLOR_RGB565_BLACK);
+    screen.setTextSize(1);
+    screen.setTextColor(COLOR_RGB565_BLACK);
+    screen.setCursor(BOARD_X + 8, BOARD_Y + (8 * CELL_SIZE) / 2 - 4);
     screen.print(data);
   }
+
+  // Right info panel
+  screen.drawRect(RPANEL_X - 2, BOARD_Y, RPANEL_W + 2, 8 * CELL_SIZE,
+                  (uint16_t)0xC618);
 
   displayStatusBar(
       fenOk ? "Game active" : "Waiting...",
@@ -192,20 +205,12 @@ void drawGameScreenWithMove(bool wifiConnected,
                             const String &beforeFEN,
                             const String &afterFEN)
 {
-  // Draw the base board first (afterFEN is the current state)
   drawGameScreen(wifiConnected, afterFEN.length() > 0, afterFEN);
 
   if (beforeFEN.length() == 0 || afterFEN.length() == 0)
     return;
 
-  // Board cell geometry — must match drawFENRows layout
-  static constexpr int GRID_X = 20;
-  static constexpr int GRID_Y = 75;
-  static constexpr int CELL_W = 14; // chars are 6 px wide + spacing → 14 px/cell
-  static constexpr int CELL_H = 22; // row spacing in drawFENRows
-
   char before[8][8], after[8][8];
-  // Zero-init
   for (int r = 0; r < 8; r++)
     for (int c = 0; c < 8; c++)
       before[r][c] = after[r][c] = '.';
@@ -220,25 +225,21 @@ void drawGameScreenWithMove(bool wifiConnected,
       if (before[r][c] == after[r][c])
         continue;
 
-      int px = GRID_X + c * CELL_W;
-      int py = GRID_Y + r * CELL_H;
+      int px = BOARD_X + c * CELL_SIZE;
+      int py = BOARD_Y + r * CELL_SIZE;
 
-      // Source square: piece was here before, now empty → yellow
       if (before[r][c] != '.' && after[r][c] == '.')
       {
-        screen.fillRect(px - 1, py - 1, CELL_W, CELL_H, COLOR_RGB565_YELLOW);
-        screen.setTextSize(1);
-        screen.setTextColor(COLOR_RGB565_BLACK);
-        screen.setCursor(px, py);
-        screen.print('.');
+        // Source square (piece left): yellow
+        screen.fillRect(px, py, CELL_SIZE, CELL_SIZE, COLOR_RGB565_YELLOW);
       }
-      // Destination square: piece appeared (or changed) → green
       else if (after[r][c] != '.')
       {
-        screen.fillRect(px - 1, py - 1, CELL_W, CELL_H, COLOR_RGB565_GREEN);
-        screen.setTextSize(1);
+        // Destination square: green with piece
+        screen.fillRect(px, py, CELL_SIZE, CELL_SIZE, COLOR_RGB565_GREEN);
+        screen.setTextSize(2);
         screen.setTextColor(COLOR_RGB565_BLACK);
-        screen.setCursor(px, py);
+        screen.setCursor(px + (CELL_SIZE - 12) / 2, py + (CELL_SIZE - 16) / 2);
         screen.print(after[r][c]);
       }
     }
@@ -250,13 +251,12 @@ void drawGameScreenWithMove(bool wifiConnected,
 // ---------------------------------------------------------------------------
 void drawCheckAlert(bool whiteInCheck)
 {
-  static constexpr int BAN_Y = 42;
-  static constexpr int BAN_H = 18;
-  screen.fillRect(0, BAN_Y, SCR_W, BAN_H, COLOR_RGB565_YELLOW);
+  // Yellow banner in the right info panel, at the top
+  screen.fillRect(RPANEL_X - 2, BOARD_Y, RPANEL_W + 2, 22, COLOR_RGB565_YELLOW);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_BLACK);
-  const char *msg = whiteInCheck ? "  !! WHITE IS IN CHECK !!" : "  !! BLACK IS IN CHECK !!";
-  screen.setCursor(6, BAN_Y + 5);
+  const char *msg = whiteInCheck ? "!! WHITE IN CHECK !!" : "!! BLACK IN CHECK !!";
+  screen.setCursor(RPANEL_X + 2, BOARD_Y + 7);
   screen.print(msg);
 }
 
@@ -267,34 +267,31 @@ void drawGameOverScreen(const char *resultLine)
 {
   screen.fillScreen(COLOR_RGB565_BLACK);
 
-  // Coloured banner
   uint16_t bannerCol = COLOR_RGB565_RED;
-  // detect stalemate / draw to use a neutral colour
   if (strstr(resultLine, "stalemate") || strstr(resultLine, "Draw") ||
       strstr(resultLine, "draw"))
-    bannerCol = 0x7BEF; // grey
+    bannerCol = 0x7BEF;
 
-  screen.fillRect(0, 0, SCR_W, 64, bannerCol);
-  screen.setTextSize(2);
+  screen.fillRect(0, 0, SCR_W, 58, bannerCol);
+  screen.setTextSize(3);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(12, 22);
+  // "GAME OVER" — size-3 glyph: 18 px wide × 9 chars = 162 px
+  screen.setCursor((SCR_W - 162) / 2, 16);
   screen.print("GAME OVER");
 
-  // Result text
-  screen.fillRect(0, 64, SCR_W, SCR_H - 64, COLOR_RGB565_BLACK);
+  screen.fillRect(0, 58, SCR_W, SCR_H - 58 - STATUS_H, COLOR_RGB565_BLACK);
   screen.setTextWrap(true);
   screen.setTextSize(2);
   screen.setTextColor(COLOR_RGB565_YELLOW);
-  // centre horizontally
   int textW = (int)strlen(resultLine) * 12;
   int x = (SCR_W - textW) / 2;
   if (x < 6)
     x = 6;
-  screen.setCursor(x, 140);
+  screen.setCursor(x, 118);
   screen.print(resultLine);
   screen.setTextWrap(false);
 
-  displayStatusBar("Tap \"New Game\" to play again", bannerCol);
+  displayStatusBar("Tap to play again", bannerCol);
 }
 
 // ---------------------------------------------------------------------------
@@ -302,14 +299,13 @@ void drawGameOverScreen(const char *resultLine)
 // ---------------------------------------------------------------------------
 void drawPiecePickedUp(const char *squareName)
 {
-  static constexpr int BAN_Y = 42;
-  static constexpr int BAN_H = 18;
-  screen.fillRect(0, BAN_Y, SCR_W, BAN_H, 0xFD20); // orange
+  // Orange banner in the right info panel, below any check alert
+  screen.fillRect(RPANEL_X - 2, BOARD_Y + 26, RPANEL_W + 2, 22, 0xFD20);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
   char buf[32];
-  snprintf(buf, sizeof(buf), "  Piece lifted: %s", squareName ? squareName : "?");
-  screen.setCursor(6, BAN_Y + 5);
+  snprintf(buf, sizeof(buf), "  Lifted: %s", squareName ? squareName : "?");
+  screen.setCursor(RPANEL_X + 2, BOARD_Y + 33);
   screen.print(buf);
 }
 
@@ -395,7 +391,7 @@ void drawKeyboard(bool shifted, bool symbols)
 
   // Keyboard background
   screen.fillRect(0, KB_ROW1_Y - 4, SCR_W,
-                  KB_ROW4_Y + KB_KEY_H + 6 - (KB_ROW1_Y - 4), 0xDEDB);
+                  KB_ROW4_Y + KB_KEY_H + 8 - (KB_ROW1_Y - 4), 0xDEDB);
 
   // Row 1 – 10 keys
   for (int i = 0; i < 10; i++)
@@ -404,7 +400,7 @@ void drawKeyboard(bool shifted, bool symbols)
     screen.fillRect(kx, KB_ROW1_Y, KB_STD_W, KB_KEY_H, (uint16_t)0x8410);
     screen.setTextSize(1);
     screen.setTextColor(COLOR_RGB565_WHITE);
-    screen.setCursor(kx + 10, KB_ROW1_Y + 16);
+    screen.setCursor(kx + (KB_STD_W - 6) / 2, KB_ROW1_Y + (KB_KEY_H - 8) / 2);
     screen.print(row1[i]);
   }
   // Row 2 – 9 keys
@@ -414,7 +410,7 @@ void drawKeyboard(bool shifted, bool symbols)
     screen.fillRect(kx, KB_ROW2_Y, KB_STD_W, KB_KEY_H, (uint16_t)0x8410);
     screen.setTextSize(1);
     screen.setTextColor(COLOR_RGB565_WHITE);
-    screen.setCursor(kx + 10, KB_ROW2_Y + 16);
+    screen.setCursor(kx + (KB_STD_W - 6) / 2, KB_ROW2_Y + (KB_KEY_H - 8) / 2);
     screen.print(row2[i]);
   }
   // Row 3 – Shift/ABC + 7 keys + DEL
@@ -423,7 +419,7 @@ void drawKeyboard(bool shifted, bool symbols)
                           : (shifted ? COLOR_RGB565_BLUE : (uint16_t)0x4208));
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(4, KB_ROW3_Y + 16);
+  screen.setCursor(KB_SHIFT_W / 2 - 9, KB_ROW3_Y + (KB_KEY_H - 8) / 2);
   screen.print(symbols ? "ABC" : (shifted ? "SFT" : "sft"));
 
   for (int i = 0; row3[i]; i++)
@@ -432,37 +428,37 @@ void drawKeyboard(bool shifted, bool symbols)
     screen.fillRect(kx, KB_ROW3_Y, KB_STD_W, KB_KEY_H, (uint16_t)0x8410);
     screen.setTextSize(1);
     screen.setTextColor(COLOR_RGB565_WHITE);
-    screen.setCursor(kx + 10, KB_ROW3_Y + 16);
+    screen.setCursor(kx + (KB_STD_W - 6) / 2, KB_ROW3_Y + (KB_KEY_H - 8) / 2);
     screen.print(row3[i]);
   }
   screen.fillRect(KB_DEL_X, KB_ROW3_Y, KB_DEL_W, KB_KEY_H, (uint16_t)0x4208);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(KB_DEL_X + 14, KB_ROW3_Y + 16);
+  screen.setCursor(KB_DEL_X + (KB_DEL_W - 18) / 2, KB_ROW3_Y + (KB_KEY_H - 8) / 2);
   screen.print("DEL");
 
   // Row 4 – Sym toggle + Space + Done
   screen.fillRect(0, KB_ROW4_Y, KB_SYM_W, KB_KEY_H, (uint16_t)0x4208);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(8, KB_ROW4_Y + 16);
+  screen.setCursor(KB_SYM_W / 2 - 12, KB_ROW4_Y + (KB_KEY_H - 8) / 2);
   screen.print(symbols ? "ABC" : "?123");
 
   screen.fillRect(KB_SPACE_X, KB_ROW4_Y, KB_SPACE_W, KB_KEY_H, (uint16_t)0x8410);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(KB_SPACE_X + 60, KB_ROW4_Y + 16);
+  screen.setCursor(KB_SPACE_X + KB_SPACE_W / 2 - 18, KB_ROW4_Y + (KB_KEY_H - 8) / 2);
   screen.print("SPACE");
 
   screen.fillRect(KB_DONE_X, KB_ROW4_Y, KB_DONE_W, KB_KEY_H, COLOR_RGB565_GREEN);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(KB_DONE_X + 10, KB_ROW4_Y + 16);
+  screen.setCursor(KB_DONE_X + (KB_DONE_W - 24) / 2, KB_ROW4_Y + (KB_KEY_H - 8) / 2);
   screen.print("DONE");
 }
 
 void drawPasswordField(const char *password, bool showChars)
 {
-  screen.fillRect(8, 72, 260, 38, (uint16_t)0xEF7D);
-  screen.drawRect(8, 72, 260, 38, COLOR_RGB565_BLACK);
+  screen.fillRect(8, 72, 384, 38, (uint16_t)0xEF7D);
+  screen.drawRect(8, 72, 384, 38, COLOR_RGB565_BLACK);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_BLACK);
   screen.setCursor(12, 84);
@@ -475,11 +471,11 @@ void drawPasswordField(const char *password, bool showChars)
     for (int i = 0; password[i]; i++)
       screen.print('*');
   }
-  // Show / Hide toggle button
-  screen.fillRect(272, 72, 44, 38, (uint16_t)0x6B4D);
+  // Show / Hide toggle button (right side)
+  screen.fillRect(396, 72, 78, 38, (uint16_t)0x6B4D);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(274, 84);
+  screen.setCursor(400, 84);
   screen.print(showChars ? "HIDE" : "SHOW");
 }
 
@@ -519,64 +515,47 @@ void drawWifiListScreen(const ScannedNetwork *nets, uint8_t count, bool scanning
   screen.setCursor(6, 15);
   screen.print("< Back");
   displayCenteredText("WiFi Settings", 15, 1, COLOR_RGB565_WHITE);
-  screen.fillRect(238, 4, 78, 30, (uint16_t)0x2945); // teal Rescan btn
-  screen.setCursor(248, 15);
+  screen.fillRect(386, 4, 88, 30, (uint16_t)0x2945);
+  screen.setCursor(396, 15);
   screen.print("Rescan");
   displayDivider(39, (uint16_t)0xC618);
 
   if (scanning)
   {
-    displayCenteredText("Scanning...", 200, 1, COLOR_RGB565_BLACK);
+    displayCenteredText("Scanning...", 168, 1, COLOR_RGB565_BLACK);
     displayStatusBar("Please wait...", COLOR_RGB565_BLUE);
     return;
   }
   if (count == 0)
   {
-    displayCenteredText("No networks found", 190, 1, COLOR_RGB565_BLACK);
-    displayCenteredText("Tap Rescan to retry", 210, 1, COLOR_RGB565_BLACK);
+    displayCenteredText("No networks found", 158, 1, COLOR_RGB565_BLACK);
+    displayCenteredText("Tap Rescan to retry", 178, 1, COLOR_RGB565_BLACK);
     displayStatusBar("No networks in range", (uint16_t)0x8410);
     return;
   }
 
-  for (uint8_t i = 0; i < count && i < 7; i++)
+  for (uint8_t i = 0; i < count && i < 5; i++)
   {
     int ry = WIFLIST_ROW_Y_START + i * WIFLIST_ROW_H;
     screen.fillRect(0, ry, SCR_W, WIFLIST_ROW_H - 1,
                     (i % 2 == 0) ? COLOR_RGB565_WHITE : (uint16_t)0xF7BE);
-    drawSignalBars(8, ry + 4, nets[i].rssi);
+    drawSignalBars(8, ry + 6, nets[i].rssi);
 
     screen.setTextSize(1);
     screen.setTextColor(COLOR_RGB565_BLACK);
-    screen.setCursor(36, ry + 8);
-    char truncated[22];
-    strncpy(truncated, nets[i].ssid, 21);
-    truncated[21] = '\0';
+    screen.setCursor(36, ry + 10);
+    char truncated[36];
+    strncpy(truncated, nets[i].ssid, 35);
+    truncated[35] = '\0';
     screen.print(truncated);
 
     screen.setTextColor((uint16_t)0x8410);
-    screen.setCursor(36, ry + 26);
+    screen.setCursor(36, ry + 28);
     screen.print(nets[i].rssi);
     screen.print(" dBm");
-
-    if (nets[i].saved)
-    {
-      screen.fillRect(274, ry + 12, 42, 18, COLOR_RGB565_GREEN);
-      screen.setTextSize(1);
-      screen.setTextColor(COLOR_RGB565_WHITE);
-      screen.setCursor(276, ry + 17);
-      screen.print("SAVED");
-    }
-    else
-    {
-      screen.fillRect(278, ry + 12, 38, 18, COLOR_RGB565_BLUE);
-      screen.setTextSize(1);
-      screen.setTextColor(COLOR_RGB565_WHITE);
-      screen.setCursor(282, ry + 17);
-      screen.print("NEW");
-    }
   }
 
-  char statusMsg[46];
+  char statusMsg[50];
   snprintf(statusMsg, sizeof(statusMsg), "%d network%s found  -  tap to connect",
            count, count == 1 ? "" : "s");
   displayStatusBar(statusMsg, (uint16_t)0x4208);

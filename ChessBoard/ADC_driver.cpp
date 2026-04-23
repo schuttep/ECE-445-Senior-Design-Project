@@ -117,8 +117,6 @@ void calibrateBaselines()
 
 void readBoardFEN(char *fenOut)
 {
-    strip.clear();
-
     int fenPos = 0;
 
     for (int adc = 0; adc < NUM_ADCS; adc++) // adc = board row (rank 8 down to 1)
@@ -130,12 +128,9 @@ void readBoardFEN(char *fenOut)
         {
             uint16_t raw = readChannel(addr, ch);
             int diff = (int)raw - (int)baseline[adc][ch];
-            int led = adcToLedIndex(adc, ch);
 
             if (diff >= THRESHOLD)
             {
-                // Positive polarity (N-pole) → RED
-                strip.setPixelColor(led, strip.Color(255, 0, 0));
                 if (empty > 0)
                 {
                     fenOut[fenPos++] = '0' + empty;
@@ -145,8 +140,6 @@ void readBoardFEN(char *fenOut)
             }
             else if (diff <= -THRESHOLD)
             {
-                // Negative polarity (S-pole) → WHITE
-                strip.setPixelColor(led, strip.Color(255, 255, 255));
                 if (empty > 0)
                 {
                     fenOut[fenPos++] = '0' + empty;
@@ -156,7 +149,6 @@ void readBoardFEN(char *fenOut)
             }
             else
             {
-                strip.setPixelColor(led, 0); // no magnet → off
                 empty++;
             }
         }
@@ -172,7 +164,6 @@ void readBoardFEN(char *fenOut)
     }
 
     fenOut[fenPos] = '\0';
-    strip.show();
 }
 
 ADCTestResult testADCs()

@@ -20,31 +20,32 @@ DFRobot_Touch_GT911_IPS touch(0x5D, SCR_TCH_RST, SCR_INT);
 DFRobot_ST7365P_320x480_HW_SPI screen(SCR_DC, SCR_CS, SCR_RST, SCR_BLK);
 
 // ===================== BUTTON REGIONS =====================
-#define JOIN_BTN_X 30
-#define JOIN_BTN_Y 160
-#define JOIN_BTN_W 260
-#define JOIN_BTN_H 70
+// Menu buttons (landscape 480×320)
+#define JOIN_BTN_X 50
+#define JOIN_BTN_Y 75
+#define JOIN_BTN_W 380
+#define JOIN_BTN_H 55
 
-#define CREATE_BTN_X 30
-#define CREATE_BTN_Y 245
-#define CREATE_BTN_W 260
-#define CREATE_BTN_H 70
+#define CREATE_BTN_X 50
+#define CREATE_BTN_Y 145
+#define CREATE_BTN_W 380
+#define CREATE_BTN_H 55
 
-#define WIFI_BTN_X 30
-#define WIFI_BTN_Y 330
-#define WIFI_BTN_W 260
-#define WIFI_BTN_H 70
+#define WIFI_BTN_X 50
+#define WIFI_BTN_Y 215
+#define WIFI_BTN_W 380
+#define WIFI_BTN_H 55
 
-// Confirm / Cancel overlay shown when a local move awaits approval
-#define CONFIRM_BTN_X 20
-#define CONFIRM_BTN_Y 405
-#define CONFIRM_BTN_W 130
-#define CONFIRM_BTN_H 55
+// Confirm / Cancel in right info panel of the game screen
+#define CONFIRM_BTN_X 272
+#define CONFIRM_BTN_Y 200
+#define CONFIRM_BTN_W 192
+#define CONFIRM_BTN_H 44
 
-#define CANCEL_BTN_X 170
-#define CANCEL_BTN_Y 405
-#define CANCEL_BTN_W 130
-#define CANCEL_BTN_H 55
+#define CANCEL_BTN_X 272
+#define CANCEL_BTN_Y 252
+#define CANCEL_BTN_W 192
+#define CANCEL_BTN_H 44
 
 // ===================== STATE =====================
 enum ScreenState
@@ -69,6 +70,7 @@ static String gs_lastIncomingFEN;
 static String gs_lastPendingFEN;
 static char gs_liftSquare[3] = {0};
 static bool gs_liftShown = false;
+static String gs_lastTurnStatus; // tracks last status bar turn message
 
 // Physical board FEN buffer (72 bytes = worst-case FEN board + null)
 static char gs_boardFENBuf[72];
@@ -101,7 +103,7 @@ void showMenuScreen()
   drawMenuScreen(wifiConnected);
 
   displayButton(JOIN_BTN_X, JOIN_BTN_Y, JOIN_BTN_W, JOIN_BTN_H, COLOR_RGB565_BLUE, "Join Game");
-  displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, 0xFD20, "Run Tests");
+  displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, 0xFD20, "Create Game");
   displayButton(WIFI_BTN_X, WIFI_BTN_Y, WIFI_BTN_W, WIFI_BTN_H, 0x7BEF, "WiFi Settings");
 
   menuShownAt = millis();
@@ -118,12 +120,12 @@ void showGameScreen()
   gs_lastPendingFEN = "";
   gs_liftSquare[0] = 0;
   gs_liftShown = false;
+  gs_lastTurnStatus = "";
 
   // Show a placeholder board while the FSM initialises
   drawGameScreen(wifiConnected, false, String("Starting game..."));
-
-  // Kick off the FSM — it will drive everything from here
-  cgm_startGameNow();
+  // Note: the caller (touch handler) must have already called cgm_createGameNow()
+  // or cgm_joinGameNow() before calling showGameScreen().
 }
 
 // Draw confirm / cancel buttons as an overlay on the game screen.
@@ -179,7 +181,7 @@ void handleWifiListTouch(int tx, int ty)
     showMenuScreen();
     return;
   } // Back
-  if (ty < 38 && tx > 238)
+  if (ty < 38 && tx > 360)
   {
     showWifiListScreen();
     return;
@@ -190,32 +192,7 @@ void handleWifiListTouch(int tx, int ty)
     int idx = (ty - WIFLIST_ROW_Y_START) / WIFLIST_ROW_H;
     if (idx < 0 || idx >= (int)scannedCount)
       return;
-    const ScannedNetwork &net = scannedNets[idx];
-
-    if (net.saved)
-    {
-      char savedPass[WM_PASS_LEN];
-      wmGetSavedPass(net.ssid, savedPass);
-      displayStatusBar("Connecting...", COLOR_RGB565_BLUE);
-      if (wmConnect(net.ssid, savedPass))
-      {
-        wifiConnected = true;
-        displayStatusBar("Connected!", COLOR_RGB565_GREEN);
-        delay(1200);
-        showMenuScreen();
-      }
-      else
-      {
-        drawErrorScreen("Connection Failed",
-                        "Could not connect. The saved password may be wrong.");
-        waitForTap();
-        showWifiListScreen();
-      }
-    }
-    else
-    {
-      showWifiPassScreen(net.ssid);
-    }
+    showWifiPassScreen(scannedNets[idx].ssid);
   }
 }
 
@@ -227,8 +204,8 @@ void handleWifiPassTouch(int tx, int ty)
     return;
   } // Back
 
-  // Show / Hide password toggle
-  if (tx >= 272 && tx <= 316 && ty >= 72 && ty <= 110)
+  // Show / Hide password toggle (landscape: x 396–474)
+  if (tx >= 396 && tx <= 474 && ty >= 72 && ty <= 110)
   {
     kbShowChars = !kbShowChars;
     drawPasswordField(passwordBuf, kbShowChars);
@@ -268,9 +245,8 @@ void handleWifiPassTouch(int tx, int ty)
     displayStatusBar("Connecting...", COLOR_RGB565_BLUE);
     if (wmConnect(selectedSSID, passwordBuf))
     {
-      wmSaveNetwork(selectedSSID, passwordBuf);
       wifiConnected = true;
-      displayStatusBar("Connected! Network saved.", COLOR_RGB565_GREEN);
+      displayStatusBar("Connected!", COLOR_RGB565_GREEN);
       delay(1200);
       showMenuScreen();
     }
@@ -322,13 +298,15 @@ void handleTouch()
     if (tx >= JOIN_BTN_X && tx <= JOIN_BTN_X + JOIN_BTN_W &&
         ty >= JOIN_BTN_Y && ty <= JOIN_BTN_Y + JOIN_BTN_H)
     {
+      cgm_joinGameNow();
       showGameScreen();
       return;
     }
     if (tx >= CREATE_BTN_X && tx <= CREATE_BTN_X + CREATE_BTN_W &&
         ty >= CREATE_BTN_Y && ty <= CREATE_BTN_Y + CREATE_BTN_H)
     {
-      runBoardTests();
+      cgm_createGameNow();
+      showGameScreen();
       return;
     }
     if (tx >= WIFI_BTN_X && tx <= WIFI_BTN_X + WIFI_BTN_W &&
@@ -415,16 +393,9 @@ void setup()
   cgm_setup();
 
   drawConnectingScreen(WIFI_SSID);
-  // 1. Try all NVS-saved networks first
-  wifiConnected = wmConnectBoot();
-  // 2. Fall back to secrets.h credentials
-  if (!wifiConnected)
-  {
-    wifiConnected = connectWifi();
-    if (wifiConnected)
-      wmSaveNetwork(WIFI_SSID, WIFI_PASS); // persist for future boots
-  }
-  // 3. Nothing worked — let the user pick a network from the scan list
+  // Connect using secrets.h credentials directly
+  wifiConnected = connectWifi();
+  // If that fails let the user pick a network
   if (!wifiConnected)
   {
     displayStatusBar("No network found - select WiFi", COLOR_RGB565_RED);
@@ -439,59 +410,179 @@ void setup()
 }
 
 // ===================== BOARD SELF-TEST =====================
+// Layout constants that mirror display_driver.cpp (landscape 480×320)
+static constexpr int BT_BOARD_X = 8;     // left edge of the grid
+static constexpr int BT_BOARD_Y = 40;    // top edge of the grid
+static constexpr int BT_CELL = 32;       // cell size in pixels
+static constexpr int BT_THRESHOLD = 300; // diff magnitude to call a piece present
+
+// Persistent state for the test screen
+static int16_t bt_diff[8][8]; // last ADC diff for each square
+static int bt_lastChip = -1;  // last square that crossed threshold
+static int bt_lastCh = -1;
+static char bt_lastLabel[32] = "";
+
+// Draw the static frame (header + grid outline + legend) — call once.
+static void bt_drawFrame()
+{
+  screen.fillScreen(COLOR_RGB565_BLACK);
+
+  // Header bar
+  screen.fillRect(0, 0, 480, 36, (uint16_t)0x2945);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(6, 14);
+  screen.print("ADC Board Test  ");
+  screen.setTextColor((uint16_t)0x07FF); // cyan
+  screen.print("Tap anywhere to exit");
+
+  // Grid outline
+  screen.drawRect(BT_BOARD_X - 1, BT_BOARD_Y - 1,
+                  8 * BT_CELL + 2, 8 * BT_CELL + 2, (uint16_t)0x7BEF);
+
+  // Column labels  a-h
+  screen.setTextSize(1);
+  screen.setTextColor((uint16_t)0x7BEF);
+  for (int c = 0; c < 8; c++)
+  {
+    screen.setCursor(BT_BOARD_X + c * BT_CELL + 12, BT_BOARD_Y + 8 * BT_CELL + 4);
+    screen.print((char)('a' + c));
+  }
+
+  // Row labels  8-1
+  for (int r = 0; r < 8; r++)
+  {
+    screen.setCursor(BT_BOARD_X - 8, BT_BOARD_Y + r * BT_CELL + 12);
+    screen.print((char)('8' - r));
+  }
+
+  // Right-panel legend
+  int lx = BT_BOARD_X + 8 * BT_CELL + 12;
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(lx, 44);
+  screen.print("Legend:");
+  screen.fillRect(lx, 58, 14, 12, COLOR_RGB565_GREEN);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(lx + 18, 58);
+  screen.print("N-pole (+)");
+  screen.fillRect(lx, 76, 14, 12, (uint16_t)0xFD20);
+  screen.setCursor(lx + 18, 76);
+  screen.print("S-pole (-)");
+  screen.fillRect(lx, 94, 14, 12, (uint16_t)0x4208);
+  screen.setTextColor((uint16_t)0x7BEF);
+  screen.setCursor(lx + 18, 94);
+  screen.print("Empty");
+
+  // "Last event" label
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(lx, 124);
+  screen.print("Last event:");
+}
+
+// Redraw all 64 cells based on the current bt_diff table.
+static void bt_redrawGrid()
+{
+  for (int r = 0; r < 8; r++)
+  {
+    for (int c = 0; c < 8; c++)
+    {
+      int px = BT_BOARD_X + c * BT_CELL;
+      int py = BT_BOARD_Y + r * BT_CELL;
+      int16_t d = bt_diff[r][c];
+      uint16_t col;
+      char label = '.';
+      if (d >= BT_THRESHOLD)
+      {
+        col = COLOR_RGB565_GREEN;
+        label = 'P';
+      }
+      else if (d <= -BT_THRESHOLD)
+      {
+        col = (uint16_t)0xFD20; // orange
+        label = 'p';
+      }
+      else
+      {
+        col = (uint16_t)0x4208; // dark grey
+      }
+      screen.fillRect(px + 1, py + 1, BT_CELL - 2, BT_CELL - 2, col);
+      if (label != '.')
+      {
+        screen.setTextSize(1);
+        screen.setTextColor(COLOR_RGB565_BLACK);
+        screen.setCursor(px + (BT_CELL - 6) / 2, py + (BT_CELL - 8) / 2);
+        screen.print(label);
+      }
+    }
+  }
+}
+
 void drawBoardTestLive()
 {
-  clearLEDs();
-  showLEDs();
+  bool anyChange = false;
 
-  // Erase and redraw one line per ADC chip showing chip index and ch1 raw value
-  static char lineBuf[8][28];
   for (int chip = 0; chip < 8; chip++)
   {
-    uint16_t raw = readRawChannel(chip, 1);
-    bool active = false;
-
-    if (raw == 0xFFFF)
+    for (int ch = 0; ch < 8; ch++)
     {
-      snprintf(lineBuf[chip], 28, " ADC%d ch1: NO RESPONSE", chip);
-    }
-    else
-    {
-      int diff = (int)raw - (int)getBaseline(chip, 1);
-      active = abs(diff) >= 300;
-      snprintf(lineBuf[chip], 28, " ADC%d ch1: %4u %s", chip, (unsigned)raw,
-               active ? "*" : " ");
-    }
+      uint16_t raw = readRawChannel(chip, ch);
+      int16_t d;
+      if (raw == 0xFFFF)
+        d = 0; // no response
+      else
+        d = (int16_t)((int)raw - (int)getBaseline(chip, ch));
 
-    // Light the entire row for this chip if active
-    if (active)
-    {
-      for (int col = 0; col < 8; col++)
-        setLEDForSquare(chip, col, 0, 180, 255);
-    }
+      int16_t prev = bt_diff[chip][ch];
+      bt_diff[chip][ch] = d;
 
-    int lineY = 22 + (2 + chip) * 14;
-    screen.fillRect(0, lineY, 320, 14, COLOR_RGB565_BLACK);
+      // Detect a threshold crossing (piece placed or removed)
+      bool wasActive = (abs((int)prev) >= BT_THRESHOLD);
+      bool isActive = (abs((int)d) >= BT_THRESHOLD);
+      if (isActive != wasActive || (isActive && (d > 0) != (prev > 0)))
+      {
+        anyChange = true;
+        if (isActive)
+        {
+          bt_lastChip = chip;
+          bt_lastCh = ch;
+          char file = 'a' + ch;
+          char rank = '8' - chip;
+          const char *polarity = (d > 0) ? "N-pole" : "S-pole";
+          snprintf(bt_lastLabel, sizeof(bt_lastLabel),
+                   "%c%c  ADC%d ch%d  %s", file, rank, chip, ch, polarity);
+        }
+      }
+    }
+  }
+
+  if (anyChange)
+  {
+    bt_redrawGrid();
+
+    // Update last-event text in right panel
+    int lx = BT_BOARD_X + 8 * BT_CELL + 12;
+    screen.fillRect(lx, 138, 480 - lx - 4, 14, COLOR_RGB565_BLACK);
     screen.setTextSize(1);
-    screen.setTextColor(active ? COLOR_RGB565_GREEN : (uint16_t)0x7BEF);
-    screen.setCursor(4, lineY);
-    screen.print(lineBuf[chip]);
+    screen.setTextColor((uint16_t)0x07FF); // cyan
+    screen.setCursor(lx, 138);
+    screen.print(bt_lastLabel[0] ? bt_lastLabel : "(none)");
   }
 }
 
 void runBoardTests()
 {
-  testLEDs();
   currentScreen = BOARD_TEST;
   lastBoardTestUpdate = 0;
 
-  // Draw the static frame once
-  static const char *initLines[2] = {
-      "Tap to exit  Live Readings",
-      "   Ch1 raw values (0-4095)"};
-  drawDebugScreen(initLines, 2);
+  // Clear per-test state
+  memset(bt_diff, 0, sizeof(bt_diff));
+  bt_lastChip = -1;
+  bt_lastCh = -1;
+  bt_lastLabel[0] = '\0';
 
-  drawBoardTestLive();
+  bt_drawFrame();
+  bt_redrawGrid();
 }
 
 // ===================== LOOP =====================
@@ -560,6 +651,7 @@ void loop()
       gs_lastConfirmState = false;
       gs_lastCheckState = false;
       gs_liftShown = false;
+      gs_lastTurnStatus = ""; // force status bar refresh after redraw
 
       // Show move highlight if we have a before/after pair
       if (incomingFEN.length() > 0)
@@ -577,6 +669,19 @@ void loop()
         bool fenValid = committedFEN.length() > 0;
         drawGameScreen(wifiNow, fenValid,
                        fenValid ? committedFEN : String("Waiting for game..."));
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // 5b. Refresh turn status in the status bar whenever it changes
+    // ----------------------------------------------------------------
+    if (!isConfirming && !cgm_isGameOver() && !cgm_isBoardSyncing())
+    {
+      const String &turnStatus = cgm_getTurnStatusString();
+      if (turnStatus.length() > 0 && turnStatus != gs_lastTurnStatus)
+      {
+        gs_lastTurnStatus = turnStatus;
+        displayStatusBar(turnStatus.c_str(), COLOR_RGB565_BLUE);
       }
     }
 
@@ -634,7 +739,7 @@ void loop()
 
   if (currentScreen == BOARD_TEST)
   {
-    if (now - lastBoardTestUpdate >= 300)
+    if (now - lastBoardTestUpdate >= 100)
     {
       lastBoardTestUpdate = now;
       drawBoardTestLive();

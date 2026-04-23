@@ -96,6 +96,53 @@ ApiResult fetchLatestFEN()
   return {false, "No fen field found"};
 }
 
+// Returns the latest board FEN and derives whose turn it is from the move
+// count: even number of moves recorded = white to move, odd = black to move.
+GameStateResult fetchGameState()
+{
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    Serial0.println("WiFi not connected");
+    return {false, "", true};
+  }
+
+  WiFiClientSecure client;
+  client.setCACert(AWS_ROOT_CA);
+
+  HTTPClient http;
+  http.begin(client, API_URL);
+
+  int httpCode = http.GET();
+  if (httpCode <= 0)
+  {
+    Serial0.println("fetchGameState: request failed");
+    http.end();
+    return {false, "", true};
+  }
+
+  String payload = http.getString();
+  http.end();
+
+  JsonDocument doc;
+  if (deserializeJson(doc, payload))
+    return {false, "", true};
+
+  JsonArray moves = doc["moves"];
+  if (moves.isNull() || moves.size() == 0)
+    return {false, "", true}; // no moves yet
+
+  size_t moveCount = moves.size();
+  const char *fen = moves[moveCount - 1]["fen"];
+  if (!fen)
+    return {false, "", true};
+
+  // Even move count means white has had as many turns as black → white to move.
+  bool whiteToMove = (moveCount % 2 == 0);
+  Serial0.printf("fetchGameState: %u moves, fen=%s, whiteToMove=%d\n",
+                 (unsigned)moveCount, fen, (int)whiteToMove);
+  return {true, String(fen), whiteToMove};
+}
+
 ApiResult pushLatestFEN(const String &move, const String &fen)
 {
   if (WiFi.status() != WL_CONNECTED)

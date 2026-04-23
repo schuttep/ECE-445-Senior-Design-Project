@@ -31,12 +31,26 @@ loop()
 
 ### Game Flow
 
-1. **Menu** — player taps "Join Game"
-2. **FSM initialises** — committed FEN set to the starting position
-3. **Local turn** — FSM waits for the physical board to differ from the committed FEN by a legal move (piece stable for 600 ms), then shows the move highlighted on screen and waits for the player to tap **Confirm** or **Cancel**
-4. **Send** — confirmed move POSTed to the API; committed FEN updated
-5. **Opponent turn** — FSM polls the API every 2 s; when a new FEN arrives it is shown on screen with the move highlighted and the player is prompted to replicate it on the physical board
-6. **Game end** — checkmate or stalemate detected; full-screen game-over panel shown; tap to start a new game
+**Creating a game (White)**
+1. Tap **Create Game** → FSM resets and starts as white
+2. Place pieces in the starting position; the board is validated and ready
+3. Make your move, tap **Confirm**, and the FEN is sent to the API
+4. FSM polls the API until the opponent's move arrives, then shows it on screen
+5. Replicate the opponent's piece move on the physical board to advance to your next turn
+
+**Joining a game (Black)**
+1. Tap **Join Game** → FSM polls the API for the current board position
+2. If a game is already in progress the current FEN and active turn are inherited; if not, a fresh game is set up waiting for white's first move
+3. If it is already your turn, proceed to step 3 of the create-game flow above; otherwise wait for the opponent's move to appear
+
+**Every move**
+1. Pick up a piece and place it — ADC reads all 64 squares at ~100 ms intervals
+2. Board must be stable for **600 ms** before the move is evaluated
+3. Chess rules are checked (legality, castling, en passant, check)
+4. **Confirm / Cancel** prompt appears with the move highlighted
+5. On confirm the FEN is POSTed (up to 5 retries); on cancel the board is restored
+
+**Game end** — checkmate, stalemate, 50-move rule, or insufficient material triggers a game-over panel. Tap to restart.
 
 ---
 
@@ -52,7 +66,7 @@ loop()
 | `LED_driver.h/.cpp` | WS2812B NeoPixel driver (hardware present; game events use screen only) |
 | `api_connect.h/.cpp` | HTTPS REST client for the game server |
 | `wifi_driver.h/.cpp` | Boot-time WiFi helper |
-| `wifi_manager.h/.cpp` | NVS-backed multi-network manager + on-screen WiFi UI |
+| `wifi_manager.h/.cpp` | On-screen WiFi scan / connect UI |
 | `headers.h` | Pin definitions and shared colour constants |
 | `secrets.h` | `WIFI_SSID` / `WIFI_PASS` — **gitignored, do not commit** |
 
@@ -87,16 +101,114 @@ The FSM is the heart of the system. `ChessBoard.ino` calls `cgm_tick()` every lo
 
 | State | Description |
 |---|---|
-| `CGM_WAIT_FOR_GAME_START` | Idle, waiting for `cgm_startGameNow()` |
-| `CGM_GAME_INITIALIZATION` | Resets board and turn state |
-| `CGM_LOCAL_TURN_WAIT_FOR_BOARD` | Waiting for a stable physical board change |
-| `CGM_LOCAL_TURN_VALIDATE` | Validates the detected move against chess rules |
-| `CGM_LOCAL_TURN_CONFIRM` | Waiting for the player to tap Confirm or Cancel |
-| `CGM_SEND_STATE` | POSTing the new FEN to the API |
-| `CGM_WAIT_FOR_REMOTE_MOVE` | Polling the API for the opponent's move |
-| `CGM_APPLY_REMOTE_MOVE` | Waiting for the player to replicate the opponent's move physically |
-| `CGM_GAME_END` | Game over (checkmate or stalemate) |
+| `CGM_WAIT_FOR_GAME_START` | Idle — waiting for a "Create" or "Join" button tap |
+| `CGM_JOIN_POLLING` | Fetching the current board position from the server before initialising a joined game |
+| `CGM_GAME_INITIALIZATION` | Applies the inherited or fresh starting position; sets whose turn it is |
+| `CGM_LOCAL_TURN_WAIT_FOR_BOARD` | Watching the physical board for a stable piece movement |
+| `CGM_LOCAL_TURN_VALIDATE` | Validates the detected board change against chess rules |
+| `CGM_LOCAL_TURN_CONFIRM` | Paused — waiting for the player to tap **Confirm** or **Cancel** |
+| `CGM_SEND_STATE` | POSTing the new FEN to the API (up to 5 retries over 30 s) |
+| `CGM_WAIT_FOR_REMOTE_MOVE` | Polling the API every 2 s for the opponent's next FEN |
+| `CGM_APPLY_REMOTE_MOVE` | Waiting for the physical board to match the received opponent FEN |
+| `CGM_GAME_END` | Game over — tap anywhere to restart |
 | `CGM_ERROR_STATE` | Unrecoverable FSM error |
+
+### State Transition Diagram
+
+```
+                        ┌─────────────────────┐
+               tap      │  WAIT_FOR_GAME_START │ ◄── cgm_resetManager()
+          "Create Game"  └──────────┬──────────┘
+          ─────────────────────────►│
+                                    │ tap "Join Game"
+                    ┌───────────────┼──────────────────┐
+                    ▼               │                   ▼
+        ┌───────────────────┐       │     ┌──────────────────────┐
+        │ GAME_INITIALIZATION│◄──── ┘     │    JOIN_POLLING       │
+        │  (white, fresh)   │ always      │ (GET /moves → FEN)   │
+        └─────────┬─────────┘ next        └──────────┬───────────┘
+                  │                                   │
+         local turn?                       inherits FEN + turn
+         ┌────────┴────────┐
+         ▼ yes             ▼ no
+┌──────────────────┐   ┌────────────────────┐
+│LOCAL_TURN_WAIT_  │   │ WAIT_FOR_REMOTE_   │◄─────────────────────────┐
+│  FOR_BOARD       │   │      MOVE          │ (polls API every 2 s)    │
+└────────┬─────────┘   └────────┬───────────┘                          │
+         │ stable 600 ms              │ new FEN received                │
+         ▼                      ▼                                       │
+┌──────────────────┐   ┌────────────────────┐                          │
+│LOCAL_TURN_       │   │ APPLY_REMOTE_MOVE  │                          │
+│  VALIDATE        │   │ (show move on      │                          │
+└────────┬─────────┘   │  screen; wait for  │                          │
+         │ legal        │  physical board    │                          │
+         ▼              │  to match)         │                          │
+┌──────────────────┐   └────────┬───────────┘                          │
+│LOCAL_TURN_CONFIRM│            │ board matches                         │
+│ (tap Confirm /   │            │                                       │
+│  Cancel)         │            │ ←── local turn? ──────────────────────┘ no
+└────────┬─────────┘            │ yes
+         │ Confirm              ▼
+         ▼           LOCAL_TURN_WAIT_FOR_BOARD
+┌──────────────────┐
+│   SEND_STATE     │──────────► WAIT_FOR_REMOTE_MOVE  (after POST succeeds)
+│ (POST /moves)    │                    │
+└──────────────────┘                    │ checkmate / stalemate / draw
+                                        ▼
+                               ┌─────────────────┐
+                               │    GAME_END      │◄── any terminal result
+                               └────────┬────────┘
+                                        │ tap to restart
+                                        ▼
+                               GAME_INITIALIZATION
+```
+
+### Step-by-step: Creating a game
+
+1. **Boot** — the board connects to WiFi using credentials from `secrets.h` and shows the main menu.
+2. **Tap "Create Game"** — calls `cgm_createGameNow()`:
+   - FSM resets, `localIsWhite = true`.
+   - Skips `JOIN_POLLING` and goes straight to `GAME_INITIALIZATION`.
+3. **Initialisation** — committed FEN set to the standard starting position; white to move; castling rights fully enabled.
+4. **Your turn (White)** — FSM enters `LOCAL_TURN_WAIT_FOR_BOARD`. Make a move on the physical board.
+
+### Step-by-step: Joining a game
+
+1. **Boot** — same as above.
+2. **Tap "Join Game"** — calls `cgm_joinGameNow()`:
+   - FSM resets, `localIsWhite = false`.
+   - Enters `JOIN_POLLING`.
+3. **Polling the server** — `fetchGameState()` GETs the moves list:
+   - If a game is in progress, the latest FEN and whose turn it is are stored.
+   - If no game exists yet, defaults to the starting position and white to move.
+4. **Initialisation** — `GAME_INITIALIZATION` inherits whatever the poll returned. If white has already moved, the board is shown mid-game and the FSM immediately enters `WAIT_FOR_REMOTE_MOVE` or `LOCAL_TURN_WAIT_FOR_BOARD` depending on whose turn it is.
+5. **Status bar** shows `"Your turn (Black)"` or `"Opponent (White) to move"`.
+
+### Step-by-step: Making a local move
+
+1. **FSM is in `LOCAL_TURN_WAIT_FOR_BOARD`.**  
+   Pick up a piece and place it on the target square.
+2. **Stability check** — the ADC driver reads all 64 squares every ~100 ms. The FSM compares the physical P/p/. board against the expected physical representation of the committed FEN. A change must hold stable for **600 ms** before it is accepted.
+3. **Validation (`LOCAL_TURN_VALIDATE`)** — `validateMoveAndReturnFEN()` checks the move is legal (including castling, en passant, promotion, and not leaving own king in check). If illegal the board is rejected and the player must try again.
+4. **Confirm prompt (`LOCAL_TURN_CONFIRM`)** — the display highlights the source square (yellow) and destination square (green) and shows **Confirm / Cancel** buttons.
+   - **Confirm** → FSM advances to `SEND_STATE`.
+   - **Cancel** → FSM returns to `LOCAL_TURN_WAIT_FOR_BOARD`; player must restore the piece.
+5. **Send (`SEND_STATE`)** — the new FEN is POSTed to the API. Up to 5 retries over 30 s; if all fail the move is committed locally anyway. After a successful commit the FSM transitions to `WAIT_FOR_REMOTE_MOVE`.
+
+### Step-by-step: Receiving the opponent's move
+
+1. **FSM is in `WAIT_FOR_REMOTE_MOVE`**, polling the API every 2 s.
+2. When a FEN arrives that differs from the committed position, the FSM enters `APPLY_REMOTE_MOVE`.
+3. **Display** shows the opponent's move highlighted (yellow source, green destination).
+4. **Physical replication** — the player moves the piece on the physical board. The FSM checks every `cgm_tick()` whether `readBoardFEN()` matches the expected physical representation of the incoming FEN.
+5. Once the physical board matches, castling rights, en passant, and the half-move clock are all updated, then the committed FEN is updated and the FSM returns to `LOCAL_TURN_WAIT_FOR_BOARD` (or `WAIT_FOR_REMOTE_MOVE` again if it's a relay board watching both sides).
+
+### Step-by-step: Game end
+
+- After every committed move the FSM checks for **checkmate**, **stalemate**, **50-move rule**, and **insufficient material**.
+- When a terminal condition is found, `cgm_finishGame()` is called, setting state to `CGM_GAME_END`.
+- `ChessBoard.ino` detects `cgm_isGameOver() == true` and draws the game-over panel.
+- **Tap anywhere** calls `cgm_requestNewGame()`, which restarts from `GAME_INITIALIZATION` with the same colour assignment.
 
 ### Key Configuration (`CGMConfig` namespace)
 
@@ -113,30 +225,33 @@ The FSM is the heart of the system. `ChessBoard.ino` calls `cgm_tick()` every lo
 ### Control Functions
 
 ```cpp
-cgm_setup();               // Call once in setup() after hardware init
-cgm_tick();                // Call every loop() while GAME screen is active
+cgm_setup();                  // Call once in setup() after hardware init
+cgm_tick();                   // Call every loop() while GAME screen is active
 cgm_setPhysicalBoardFEN(fen); // Feed ADC board reading into the FSM
-cgm_startGameNow();        // Start a game
-cgm_resetManager();        // Reset FSM to idle
-cgm_requestNewGame();      // Restart from game-over state
-cgm_confirmPendingMove();  // Confirm the move awaiting approval
-cgm_cancelPendingMove();   // Cancel the move awaiting approval
-cgm_setPromotionPiece('Q'); // Choose promotion piece
+cgm_createGameNow();          // Start a new game as white
+cgm_joinGameNow();            // Join an existing game as black (polls server first)
+cgm_resetManager();           // Reset FSM to idle
+cgm_requestNewGame();         // Restart from game-over state
+cgm_confirmPendingMove();     // Confirm the move awaiting approval
+cgm_cancelPendingMove();      // Cancel the move awaiting approval
+cgm_setPromotionPiece('Q');   // Choose promotion piece
 ```
 
 ### State Query Functions
 
 ```cpp
-cgm_isConfirming()         // true while waiting for Confirm/Cancel tap
-cgm_isWaitingForRemote()   // true while polling for opponent move
-cgm_isGameOver()           // true when in GAME_END state
-cgm_isWhiteToMove()        // whose turn it is
-cgm_isInCheck()            // true if current player's king is in check
-cgm_getCommittedFEN()      // last fully accepted board FEN
-cgm_getPendingFEN()        // candidate FEN awaiting confirmation
-cgm_getIncomingFEN()       // remote move FEN while being applied
-cgm_getGameResultString()  // e.g. "White wins by checkmate"
-cgm_getPieceLiftSquare(sq) // detects single piece lift; fills sq e.g. "e2"
+cgm_isConfirming()            // true while waiting for Confirm/Cancel tap
+cgm_isWaitingForRemote()      // true while polling for opponent move
+cgm_isGameOver()              // true when in GAME_END state
+cgm_isLocalPlayerWhite()      // true if local board was assigned white
+cgm_isWhiteToMove()           // whose turn it currently is
+cgm_isInCheck()               // true if the side to move is in check
+cgm_getTurnStatusString()     // e.g. "Your turn (White)" / "Opponent (Black) to move"
+cgm_getCommittedFEN()         // last fully accepted board FEN
+cgm_getPendingFEN()           // candidate FEN awaiting confirmation
+cgm_getIncomingFEN()          // remote move FEN while being applied
+cgm_getGameResultString()     // e.g. "White wins by checkmate"
+cgm_getPieceLiftSquare(sq)    // detects single piece lift; fills sq e.g. "e2"
 ```
 
 ---

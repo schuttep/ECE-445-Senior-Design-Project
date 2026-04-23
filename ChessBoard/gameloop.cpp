@@ -2,6 +2,7 @@
 #include <WiFi.h>
 
 #include "headers.h"
+#include "secrets.h"
 #include "gamelogic.h"
 #include "api_connect.h"
 #include "display_driver.h"
@@ -474,7 +475,9 @@ enum CGMGameResult
 enum CGMState
 {
     CGM_WAIT_FOR_GAME_START,
+    CGM_JOIN_POLLING, // fetching server state before initialising a joined game
     CGM_GAME_INITIALIZATION,
+    CGM_BOARD_SYNC, // waiting for physical board to match the committed FEN
     CGM_LOCAL_TURN_WAIT_FOR_BOARD,
     CGM_LOCAL_TURN_VALIDATE,
     CGM_LOCAL_TURN_CONFIRM,
@@ -758,7 +761,7 @@ void cgm_connectWiFi()
         return;
 
     cgm_uiMessage("Reconnecting WiFi...");
-    if (wmConnectBoot())
+    if (wmConnect(WIFI_SSID, WIFI_PASS))
         cgm_uiMessage("WiFi reconnected", WiFi.localIP().toString());
     else
         cgm_uiMessage("WiFi not available");
@@ -831,6 +834,16 @@ String cgm_resultToString(CGMGameResult result)
 // Finite State Machine
 // ============================================================
 
+// Holds the FEN and turn info fetched during CGM_JOIN_POLLING so that
+// cgm_handleGameInitialization() can inherit an in-progress game.
+static String cgm_joinedFEN = "";
+static bool cgm_joinedWhiteToMove = true;
+
+// State to enter once the board sync check passes.
+static CGMState cgm_nextStateAfterSync = CGM_LOCAL_TURN_WAIT_FOR_BOARD;
+// Last sync message — used to avoid redrawing the status bar every tick.
+static String cgm_lastSyncMsg = "";
+
 void cgm_resetManager()
 {
     cgm.state = CGM_WAIT_FOR_GAME_START;
@@ -858,6 +871,26 @@ void cgm_resetManager()
 void cgm_startGameNow()
 {
     cgm.state = CGM_GAME_INITIALIZATION;
+}
+
+// Start a fresh game as white (caller's board owns the white side).
+void cgm_createGameNow()
+{
+    cgm_resetManager();
+    cgm.localIsWhite = true;
+    cgm_joinedFEN = "";
+    cgm.state = CGM_GAME_INITIALIZATION;
+}
+
+// Join an existing game as black. Polls the server for the current board
+// position before initialising, so an in-progress game is inherited.
+void cgm_joinGameNow()
+{
+    cgm_resetManager();
+    cgm.localIsWhite = false;
+    cgm_joinedFEN = "";
+    cgm_joinedWhiteToMove = true;
+    cgm.state = CGM_JOIN_POLLING;
 }
 
 void cgm_finishGame(CGMGameResult result)
@@ -952,14 +985,53 @@ void cgm_handleWaitForGameStart()
     }
 }
 
+void cgm_handleJoinPolling()
+{
+    cgm_uiMessage("Joining game...", "Fetching board state");
+
+    GameStateResult gs = fetchGameState();
+    if (gs.ok)
+    {
+        cgm_joinedFEN = gs.fen;
+        cgm_joinedWhiteToMove = gs.whiteToMove;
+        String turnLabel = gs.whiteToMove ? "White to move" : "Black to move";
+        cgm_uiMessage("Game found", turnLabel);
+        Serial0.printf("[JOIN] Inherited FEN: %s  whiteToMove=%d\n",
+                       gs.fen.c_str(), (int)gs.whiteToMove);
+    }
+    else
+    {
+        // No game in progress — start fresh and wait for white's first move.
+        cgm_joinedFEN = "";
+        cgm_joinedWhiteToMove = true;
+        cgm_uiMessage("No active game", "Waiting for opponent to start");
+    }
+
+    cgm_setState(CGM_GAME_INITIALIZATION);
+}
+
 void cgm_handleGameInitialization()
 {
     cgm.gameActive = true;
-    cgm.committedFEN = cgm_startFen();
+
+    // If we arrived here via cgm_joinGameNow() a fetched FEN may be waiting.
+    if (cgm_joinedFEN.length() > 0)
+    {
+        cgm.committedFEN = cgm_joinedFEN;
+        cgm.whiteToMove = cgm_joinedWhiteToMove;
+        cgm_rebuildCastlingRightsFromBoard(cgm.committedFEN, cgm.castling);
+        cgm_joinedFEN = ""; // consume
+        Serial0.println("[INIT] Inherited game state from server");
+    }
+    else
+    {
+        cgm.committedFEN = cgm_startFen();
+        cgm.whiteToMove = true;
+        cgm_resetCastle(cgm.castling);
+    }
+
     cgm.pendingFEN = "";
     cgm.remoteIncomingFEN = "";
-    cgm.whiteToMove = true;
-    cgm_resetCastle(cgm.castling);
     cgm.enPassantSquare[0] = '\0';
     cgm.halfMoveClock = 0;
     cgm.sendRetryCount = 0;
@@ -969,17 +1041,66 @@ void cgm_handleGameInitialization()
     cgm_moveCancelled = false;
     cgm_requestedPromotion = CGMConfig::DEFAULT_PROMOTION;
 
-    cgm_uiMessage("Game initialized", cgm.localIsWhite ? "You are white" : "You are black");
+    String colorLabel = cgm.localIsWhite ? "You are White" : "You are Black";
+    String startingLabel = cgm.whiteToMove ? "White starts" : "Black starts";
+    cgm_uiMessage(colorLabel, startingLabel);
 
-    if (cgm_isLocalTurn())
+    // Always go through BOARD_SYNC so the player has to match the physical board
+    // before any moves are accepted.  This catches mid-game joins where the
+    // physical pieces haven't been set up yet.
+    cgm_nextStateAfterSync = cgm_isLocalTurn()
+                                 ? CGM_LOCAL_TURN_WAIT_FOR_BOARD
+                                 : CGM_WAIT_FOR_REMOTE_MOVE;
+    cgm_lastSyncMsg = "";
+    cgm_setState(CGM_BOARD_SYNC);
+}
+
+void cgm_handleBoardSync()
+{
+    String physOnly = cgm_boardOnlyFen(cgm_physicalBoardFEN);
+    String expectedPhys = cgm_toPhysicalFEN(cgm.committedFEN);
+
+    if (physOnly.length() > 0 && physOnly == expectedPhys)
     {
-        cgm_uiMessage("Your turn", "Make a move on the board");
-        cgm_setState(CGM_LOCAL_TURN_WAIT_FOR_BOARD);
+        cgm_lastSyncMsg = "";
+        cgm_uiMessage("Board ready");
+        cgm_setState(cgm_nextStateAfterSync);
+        return;
     }
-    else
+
+    // Count missing and extra squares for a helpful message.
+    String msg = "Set board to match screen";
+    if (physOnly.length() > 0 && expectedPhys.length() > 0)
     {
-        cgm_uiMessage("Waiting for opponent", "Black waits for white");
-        cgm_setState(CGM_WAIT_FOR_REMOTE_MOVE);
+        char expected[8][8], physical[8][8];
+        if (parseFENBoard(expectedPhys, expected) && parseFENBoard(physOnly, physical))
+        {
+            int missing = 0, extra = 0;
+            for (int r = 0; r < 8; r++)
+                for (int c = 0; c < 8; c++)
+                {
+                    if (expected[r][c] != '.' && physical[r][c] == '.')
+                        missing++;
+                    if (expected[r][c] == '.' && physical[r][c] != '.')
+                        extra++;
+                }
+            if (missing > 0 || extra > 0)
+            {
+                msg = "";
+                if (missing > 0)
+                    msg += String(missing) + " missing";
+                if (missing > 0 && extra > 0)
+                    msg += ", ";
+                if (extra > 0)
+                    msg += String(extra) + " extra";
+            }
+        }
+    }
+
+    if (msg != cgm_lastSyncMsg)
+    {
+        cgm_lastSyncMsg = msg;
+        cgm_uiMessage(msg);
     }
 }
 
@@ -1221,8 +1342,16 @@ void cgm_tick()
         cgm_handleWaitForGameStart();
         break;
 
+    case CGM_JOIN_POLLING:
+        cgm_handleJoinPolling();
+        break;
+
     case CGM_GAME_INITIALIZATION:
         cgm_handleGameInitialization();
+        break;
+
+    case CGM_BOARD_SYNC:
+        cgm_handleBoardSync();
         break;
 
     case CGM_LOCAL_TURN_WAIT_FOR_BOARD:
@@ -1274,6 +1403,36 @@ void cgm_tick()
 // ============================================================
 // Accessor helpers used by ChessBoard.ino
 // ============================================================
+
+// Returns true while the board sync check is in progress.
+bool cgm_isBoardSyncing()
+{
+    return cgm.state == CGM_BOARD_SYNC;
+}
+
+// Returns true when the local player was assigned the white pieces.
+bool cgm_isLocalPlayerWhite()
+{
+    return cgm.localIsWhite;
+}
+
+// Returns a short status string suitable for the bottom status bar, e.g.
+//   "Your turn (White)"  or  "Opponent (Black) to move"
+const String &cgm_getTurnStatusString()
+{
+    static String s;
+    if (!cgm.gameActive)
+    {
+        s = "";
+        return s;
+    }
+    const char *side = cgm.whiteToMove ? "White" : "Black";
+    if (cgm_isLocalTurn())
+        s = String("Your turn (") + side + ")";
+    else
+        s = String("Opponent (") + side + ") to move";
+    return s;
+}
 
 // True while the FSM is waiting for the player to confirm or cancel a move.
 bool cgm_isConfirming()

@@ -73,28 +73,29 @@ void drawDebugScreen(const char *const lines[], uint8_t count);
 // ===========================================================================
 
 // Row height / start-y for the network list — used for touch hit-testing.
-#define WIFLIST_ROW_Y_START 75
-#define WIFLIST_ROW_H 50
+#define WIFLIST_ROW_Y_START 44
+#define WIFLIST_ROW_H 48
 
 // Keyboard layout constants — used by ChessBoard.ino for touch hit-testing.
-#define KB_ROW1_Y 116
-#define KB_ROW2_Y 162
-#define KB_ROW3_Y 208
-#define KB_ROW4_Y 254
-#define KB_KEY_H 44
-#define KB_STD_W 28
-#define KB_STRIDE 30
-#define KB_ROW1_X 10
-#define KB_ROW2_X 25
-#define KB_ROW3_LX 46
-#define KB_SHIFT_W 44
-#define KB_DEL_X 256
-#define KB_DEL_W 64
-#define KB_SYM_W 68
-#define KB_SPACE_X 70
-#define KB_SPACE_W 178
-#define KB_DONE_X 250
-#define KB_DONE_W 70
+// These match the landscape (480×320) keyboard drawn by drawKeyboard().
+#define KB_ROW1_Y 104
+#define KB_ROW2_Y 150
+#define KB_ROW3_Y 196
+#define KB_ROW4_Y 242
+#define KB_KEY_H 42
+#define KB_STD_W 40
+#define KB_STRIDE 44
+#define KB_ROW1_X 20
+#define KB_ROW2_X 42
+#define KB_ROW3_LX 68
+#define KB_SHIFT_W 62
+#define KB_DEL_X 378
+#define KB_DEL_W 102
+#define KB_SYM_W 78
+#define KB_SPACE_X 82
+#define KB_SPACE_W 290
+#define KB_DONE_X 376
+#define KB_DONE_W 104
 
 // Network list screen.
 // Pass (nullptr, 0, true) to show a "Scanning..." placeholder while scanning.

@@ -22,7 +22,9 @@ void cgm_setPhysicalBoardFEN(const String &fen);
 // ---------------------------------------------------------------------------
 // Game control — map these to UI events (touch buttons, menu items).
 // ---------------------------------------------------------------------------
-void cgm_startGameNow();                // Begin a game (from menu or new-game prompt)
+void cgm_startGameNow();                // Begin a fresh game as white (legacy / new-game restart)
+void cgm_createGameNow();               // Begin a fresh game as white (Create Game button)
+void cgm_joinGameNow();                 // Join an in-progress game as black (Join Game button)
 void cgm_resetManager();                // Reset FSM back to idle (call before startGameNow)
 void cgm_requestNewGame();              // Request restart from the GAME_END state
 void cgm_confirmPendingMove();          // Confirm the move currently awaiting approval
@@ -35,12 +37,15 @@ void cgm_setPromotionPiece(char piece); // Set promotion piece (default 'Q')
 bool cgm_isConfirming();                 // True while waiting for confirm/cancel
 bool cgm_isWaitingForRemote();           // True while polling for opponent move
 bool cgm_isGameOver();                   // True when in GAME_END state
+bool cgm_isBoardSyncing();               // True while waiting for physical board to match screen
 bool cgm_isWhiteToMove();                // Whose turn it currently is
+bool cgm_isLocalPlayerWhite();           // True if the local player holds the white pieces
 bool cgm_isInCheck();                    // Is the current player's king in check?
 const String &cgm_getCommittedFEN();     // Last accepted board FEN
 const String &cgm_getPendingFEN();       // Candidate FEN awaiting confirmation
 const String &cgm_getIncomingFEN();      // Remote move FEN being applied
 const String &cgm_getGameResultString(); // Human-readable result string
+const String &cgm_getTurnStatusString(); // e.g. "Your turn (White)" for the status bar
 
 // Fills squareName[3] (e.g. "e2\0") and returns true when exactly one piece
 // has been lifted off the committed board (local turn wait state only).
