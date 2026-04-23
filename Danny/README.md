@@ -27,3 +27,12 @@ The main PCB for our project arrived. I went to the lab to check our components 
 
 # 2026-04-10 - Tile PCB Soldering
 In our project, the tiles of the chess board are going to be individual black/white PCBs with a Hall Effect sensor underneath each one. These tile PCBs arrived and we began soldering them. Each tile has a few components to add. My task was to solder soem of these components to these boards. 
+
+# 2026-04-21 - Completed Single Board
+We fully assembled our first board. All the tiles were put in place and the wiring was completed. Next steps will be to work on the software to get a working game between the assembled board and our demo website where we can send and receive moves as an "opponent". 
+
+# 2026-04-22 - Debugging Display + FEN Reading
+Spent time debugging issues with the display and how FEN strings were being read and interpreted on the board. The display was not updating correctly after moves, so traced through the code to see where the breakdown was happening between receiving the FEN string and rendering the board state. Adjusted parts of the logic to correctly read FENs from the ADCs. Also worked on making sure the display properly reflects invalid moves and resets correctly when needed. Screen was also rotated incorrectly, so fixed it to face the player. 
+
+# 2026-04-23 - Mock Demo + Working Single Board Game
+Held our mock demo with our TA to simulate how the full system will function during presentation. During the demo there was a slight hiccup that prevented us from fully being able to show the working single board. After the demo we worked more and realized we were reading an incorrect MAC address for the board to be able to properly interface with the university WiFi. At this point we successfully got a single board fully working with move detection, validation, and display updates. The board can now detect piece movement, verify legality using our move checking logic, and update the display accordingly. It also correctly displays checkmates as well. This was a big milestone because it shows that the core gameplay loop works on one board. Focus moving forward will be first on printing, soldering, and assembling a second board. Then we will shift focus to syncing two boards together over WiFi and polishing the overall user experience on the displays for the final demo.
