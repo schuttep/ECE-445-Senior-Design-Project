@@ -120,10 +120,18 @@ void displayCenteredText(const char *text, int y, uint8_t size, uint16_t color)
 void displayButton(int x, int y, int w, int h, uint16_t color, const char *label)
 {
   screen.fillRect(x, y, w, h, color);
+  screen.drawRect(x, y, w, h, COLOR_RGB565_BLACK);
+
   screen.setTextSize(2);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  int textX = x + (w - (int)strlen(label) * 12) / 2;
+
+  int textW = (int)strlen(label) * 12;
+  int textX = x + (w - textW) / 2;
   int textY = y + (h - 16) / 2;
+
+  if (textX < x + 4)
+    textX = x + 4;
+
   screen.setCursor(textX, textY);
   screen.print(label);
 }
@@ -146,7 +154,7 @@ void displayDivider(int y, uint16_t color)
 void initDisplay()
 {
   screen.begin();
-  screen.setRotation(1); // landscape: right side of PCB is now the bottom
+  screen.setRotation(3); // landscape, flipped 180° from rotation 1
   screen.setTextWrap(false);
 }
 
@@ -473,6 +481,7 @@ void drawPasswordField(const char *password, bool showChars)
   }
   // Show / Hide toggle button (right side)
   screen.fillRect(396, 72, 78, 38, (uint16_t)0x6B4D);
+  screen.drawRect(396, 72, 78, 38, COLOR_RGB565_BLACK);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
   screen.setCursor(400, 84);
@@ -516,6 +525,7 @@ void drawWifiListScreen(const ScannedNetwork *nets, uint8_t count, bool scanning
   screen.print("< Back");
   displayCenteredText("WiFi Settings", 15, 1, COLOR_RGB565_WHITE);
   screen.fillRect(386, 4, 88, 30, (uint16_t)0x2945);
+  screen.drawRect(386, 4, 88, 30, COLOR_RGB565_WHITE);
   screen.setCursor(396, 15);
   screen.print("Rescan");
   displayDivider(39, (uint16_t)0xC618);

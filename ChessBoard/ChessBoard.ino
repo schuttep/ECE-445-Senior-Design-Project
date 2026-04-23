@@ -95,6 +95,7 @@ void handleWifiPassTouch(int tx, int ty);
 void runBoardTests();
 void drawBoardTestLive();
 static void waitForTap();
+static void readTouchPoint(uint16_t &tx, uint16_t &ty);
 
 // ===================== SCREEN HELPERS =====================
 void showMenuScreen()
@@ -133,7 +134,7 @@ void drawConfirmOverlay()
 {
   displayButton(CONFIRM_BTN_X, CONFIRM_BTN_Y, CONFIRM_BTN_W, CONFIRM_BTN_H,
                 COLOR_RGB565_GREEN, "Confirm");
-  displayButton(CANCEL_BTN_X, CANCEL_BTN_Y, CANCEL_BTN_W, CANCEL_BTN_H,
+  displayButton(CANCEL_BTN_X, CANCEL_BTN_Y, CANCEL_BTN_W, CONFIRM_BTN_H,
                 COLOR_RGB565_RED, "Cancel");
 }
 
@@ -172,6 +173,16 @@ static void waitForTap()
   }
   delay(200);
   lastTouched = true; // prevent immediate double-trigger
+}
+
+static void readTouchPoint(uint16_t &tx, uint16_t &ty)
+{
+  uint16_t rawX = touch._point.x;
+  uint16_t rawY = touch._point.y;
+
+  // Display rotation is flipped 180°, so mirror touch coordinates too.
+  tx = 479 - rawX;
+  ty = 319 - rawY;
 }
 
 void handleWifiListTouch(int tx, int ty)
@@ -287,8 +298,9 @@ void handleTouch()
     return;
   lastTouched = true;
 
-  uint16_t tx = touch._point.x;
-  uint16_t ty = touch._point.y;
+  uint16_t tx = 0;
+  uint16_t ty = 0;
+  readTouchPoint(tx, ty);
 
   if (currentScreen == MENU)
   {
@@ -387,7 +399,6 @@ void setup()
   initDisplay();
   initLEDs();
   initADCs();
-  calibrateBaselines();
 
   // Initialise game FSM (idle, no game started)
   cgm_setup();
@@ -480,33 +491,53 @@ static void bt_drawFrame()
   screen.print("Last event:");
 }
 
+static inline int bt_channelToRow(int ch)
+{
+  // ch0 -> rank 8
+  // ch1 -> rank 7
+  // ch2 -> rank 6
+  // ch3 -> rank 5
+  // ch4 -> rank 4
+  // ch5 -> rank 3
+  // ch6 -> rank 2
+  // ch7 -> rank 1
+  return ch;
+}
+
 // Redraw all 64 cells based on the current bt_diff table.
 static void bt_redrawGrid()
 {
-  for (int r = 0; r < 8; r++)
+  for (int adc = 0; adc < 8; adc++)
   {
-    for (int c = 0; c < 8; c++)
+    for (int ch = 0; ch < 8; ch++)
     {
-      int px = BT_BOARD_X + c * BT_CELL;
-      int py = BT_BOARD_Y + r * BT_CELL;
-      int16_t d = bt_diff[r][c];
-      uint16_t col;
+      int row = bt_channelToRow(ch);   // channel decides rank
+      int col = adc;                   // ADC decides file
+
+      int px = BT_BOARD_X + col * BT_CELL;
+      int py = BT_BOARD_Y + row * BT_CELL;
+
+      int16_t d = bt_diff[row][col];
+      uint16_t col565;
       char label = '.';
+
       if (d >= BT_THRESHOLD)
       {
-        col = COLOR_RGB565_GREEN;
+        col565 = COLOR_RGB565_GREEN;
         label = 'P';
       }
       else if (d <= -BT_THRESHOLD)
       {
-        col = (uint16_t)0xFD20; // orange
+        col565 = (uint16_t)0xFD20;
         label = 'p';
       }
       else
       {
-        col = (uint16_t)0x4208; // dark grey
+        col565 = (uint16_t)0x4208;
       }
-      screen.fillRect(px + 1, py + 1, BT_CELL - 2, BT_CELL - 2, col);
+
+      screen.fillRect(px + 1, py + 1, BT_CELL - 2, BT_CELL - 2, col565);
+
       if (label != '.')
       {
         screen.setTextSize(1);
@@ -522,35 +553,42 @@ void drawBoardTestLive()
 {
   bool anyChange = false;
 
-  for (int chip = 0; chip < 8; chip++)
+  for (int adc = 0; adc < 8; adc++)
   {
     for (int ch = 0; ch < 8; ch++)
     {
-      uint16_t raw = readRawChannel(chip, ch);
+      uint16_t raw = readRawChannel(adc, ch);
       int16_t d;
+
       if (raw == 0xFFFF)
-        d = 0; // no response
+        d = 0;
       else
-        d = (int16_t)((int)raw - (int)getBaseline(chip, ch));
+        d = (int16_t)raw - 2048;
 
-      int16_t prev = bt_diff[chip][ch];
-      bt_diff[chip][ch] = d;
+      int row = bt_channelToRow(ch);
+      int col = adc;
 
-      // Detect a threshold crossing (piece placed or removed)
+      int16_t prev = bt_diff[row][col];
+      bt_diff[row][col] = d;
+
       bool wasActive = (abs((int)prev) >= BT_THRESHOLD);
       bool isActive = (abs((int)d) >= BT_THRESHOLD);
+
       if (isActive != wasActive || (isActive && (d > 0) != (prev > 0)))
       {
         anyChange = true;
+
         if (isActive)
         {
-          bt_lastChip = chip;
+          bt_lastChip = adc;
           bt_lastCh = ch;
-          char file = 'a' + ch;
-          char rank = '8' - chip;
+
+          char file = 'a' + adc;
+          char rank = '8' - row;
           const char *polarity = (d > 0) ? "N-pole" : "S-pole";
+
           snprintf(bt_lastLabel, sizeof(bt_lastLabel),
-                   "%c%c  ADC%d ch%d  %s", file, rank, chip, ch, polarity);
+                   "%c%c  ADC%d ch%d  %s", file, rank, adc, ch, polarity);
         }
       }
     }
@@ -560,11 +598,10 @@ void drawBoardTestLive()
   {
     bt_redrawGrid();
 
-    // Update last-event text in right panel
     int lx = BT_BOARD_X + 8 * BT_CELL + 12;
     screen.fillRect(lx, 138, 480 - lx - 4, 14, COLOR_RGB565_BLACK);
     screen.setTextSize(1);
-    screen.setTextColor((uint16_t)0x07FF); // cyan
+    screen.setTextColor((uint16_t)0x07FF);
     screen.setCursor(lx, 138);
     screen.print(bt_lastLabel[0] ? bt_lastLabel : "(none)");
   }

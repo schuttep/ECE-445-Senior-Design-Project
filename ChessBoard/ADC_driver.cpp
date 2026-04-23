@@ -8,7 +8,7 @@
 #define CMD_REG_READ 0x10
 #define CMD_REG_WRITE 0x08
 
-#define THRESHOLD 300
+#define THRESHOLD 150
 
 // strip is defined in LED_driver.cpp
 extern Adafruit_NeoPixel strip;
@@ -165,6 +165,7 @@ void readBoardFEN(char *fenOut)
 
     fenOut[fenPos] = '\0';
 }
+
 
 ADCTestResult testADCs()
 {
