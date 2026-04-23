@@ -1,6 +1,5 @@
 #include "ADC_driver.h"
 #include "headers.h"
-#include <Adafruit_NeoPixel.h>
 
 #define NUM_ADCS 8
 #define ADC_BASE_ADDR 0x10 // ADS7128 chips addressed 0x10 .. 0x17
@@ -9,9 +8,6 @@
 #define CMD_REG_WRITE 0x08
 
 #define THRESHOLD 300
-
-// strip is defined in LED_driver.cpp
-extern Adafruit_NeoPixel strip;
 
 static const uint16_t baseline = 2048;
 
@@ -60,16 +56,6 @@ uint16_t readRawChannel(uint8_t chip, uint8_t ch)
 uint16_t getBaseline(uint8_t chip, uint8_t ch)
 {
     return baseline;
-}
-
-// Mirror the snake-pattern used in LED_driver.cpp so LEDs match squares.
-// row 0 = rank 8 (ADC 0), col 0 = file a.
-static int adcToLedIndex(int row, int col)
-{
-    if (row % 2 == 0)
-        return row * 8 + col;
-    else
-        return row * 8 + (7 - col);
 }
 
 // ---- public API -------------------------------------------------------

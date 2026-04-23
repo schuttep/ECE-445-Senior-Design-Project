@@ -54,6 +54,7 @@ static volatile bool cgm_moveConfirmed = false;
 static volatile bool cgm_moveCancelled = false;
 static volatile bool cgm_newGameRequested = false;
 static volatile char cgm_requestedPromotion = CGMConfig::DEFAULT_PROMOTION;
+static volatile bool cgm_promotionSelected = false;
 
 void cgm_setPhysicalBoardFEN(const String &fen)
 {
@@ -78,6 +79,13 @@ void cgm_requestNewGame()
 void cgm_setPromotionPiece(char piece)
 {
     cgm_requestedPromotion = piece;
+}
+
+// Called by the touch handler when the player taps a promotion-picker button.
+void cgm_selectPromotionPiece(char piece)
+{
+    cgm_requestedPromotion = piece;
+    cgm_promotionSelected = true;
 }
 
 // ============================================================
@@ -479,6 +487,7 @@ enum CGMState
     CGM_GAME_INITIALIZATION,
     CGM_BOARD_SYNC, // waiting for physical board to match the committed FEN
     CGM_LOCAL_TURN_WAIT_FOR_BOARD,
+    CGM_LOCAL_TURN_PROMOTION, // waiting for player to pick a promotion piece
     CGM_LOCAL_TURN_VALIDATE,
     CGM_LOCAL_TURN_CONFIRM,
     CGM_SEND_STATE,
@@ -530,6 +539,14 @@ struct ChessGameManager
 };
 
 ChessGameManager cgm;
+
+bool cgm_isChoosingPromotion()
+{
+    return cgm.state == CGM_LOCAL_TURN_PROMOTION;
+}
+
+// forward declaration — defined later in this file
+void cgm_beginWaitingForStableBoard();
 
 // ============================================================
 // Post-move bookkeeping helpers
@@ -876,6 +893,42 @@ void cgm_startGameNow()
     cgm.state = CGM_GAME_INITIALIZATION;
 }
 
+// Inject an arbitrary FEN for edge-case testing.
+// Bypasses normal game init: sets up the committed FEN directly and enters
+// board-sync → local-turn-wait so the player can set up pieces and make a move.
+void cgm_loadEdgeCaseFEN(const String &fen, bool whiteToMove, const bool *castlingRights)
+{
+    cgm_resetManager();
+    cgm.localIsWhite = whiteToMove; // tester plays the side to move
+    cgm.gameActive = true;
+    cgm.committedFEN = fen;
+    cgm.whiteToMove = whiteToMove;
+    cgm.pendingFEN = "";
+    cgm.remoteIncomingFEN = "";
+    cgm.enPassantSquare[0] = '\0';
+    cgm.halfMoveClock = 0;
+    cgm.sendRetryCount = 0;
+    cgm.sendStartMs = 0;
+    if (castlingRights)
+    {
+        for (int i = 0; i < 4; i++)
+            cgm.castling[i] = castlingRights[i];
+    }
+    else
+    {
+        for (int i = 0; i < 4; i++)
+            cgm.castling[i] = true;
+    }
+    cgm_moveConfirmed = false;
+    cgm_moveCancelled = false;
+    cgm_promotionSelected = false;
+    cgm_requestedPromotion = CGMConfig::DEFAULT_PROMOTION;
+    cgm_beginWaitingForStableBoard();
+    cgm_nextStateAfterSync = CGM_LOCAL_TURN_WAIT_FOR_BOARD;
+    cgm_lastSyncMsg = "";
+    cgm.state = CGM_BOARD_SYNC;
+}
+
 // Start a fresh game as white. Resets the server state first so whitePlayerId
 // is cleared and this board can claim white on its first move.
 void cgm_createGameNow()
@@ -1049,6 +1102,7 @@ void cgm_handleGameInitialization()
     cgm_beginWaitingForStableBoard(); // also clears lastRejectedFEN
     cgm_moveConfirmed = false;
     cgm_moveCancelled = false;
+    cgm_promotionSelected = false;
     cgm_requestedPromotion = CGMConfig::DEFAULT_PROMOTION;
 
     String colorLabel = cgm.localIsWhite ? "You are White" : "You are Black";
@@ -1123,6 +1177,40 @@ void cgm_handleLocalTurnWaitForBoard()
     }
 
     cgm.pendingFEN = candidateFen;
+
+    // Check for pawn promotion: candidate has a pawn on the back rank.
+    // White pawn 'P' on row 0 (rank 8), black pawn 'p' on row 7 (rank 1).
+    {
+        char board[8][8];
+        bool isPromotion = false;
+        if (parseFENBoard(candidateFen, board))
+        {
+            for (int c = 0; c < 8 && !isPromotion; c++)
+            {
+                if (board[0][c] == 'P')
+                    isPromotion = true;
+                if (board[7][c] == 'p')
+                    isPromotion = true;
+            }
+        }
+        if (isPromotion)
+        {
+            cgm_promotionSelected = false;
+            cgm_requestedPromotion = CGMConfig::DEFAULT_PROMOTION;
+            cgm_uiMessage("Choose promotion piece");
+            cgm_setState(CGM_LOCAL_TURN_PROMOTION);
+            return;
+        }
+    }
+
+    cgm_setState(CGM_LOCAL_TURN_VALIDATE);
+}
+
+void cgm_handleLocalTurnPromotion()
+{
+    if (!cgm_promotionSelected)
+        return;
+    cgm_promotionSelected = false;
     cgm_setState(CGM_LOCAL_TURN_VALIDATE);
 }
 
@@ -1149,6 +1237,9 @@ void cgm_handleLocalTurnValidate()
 
     cgm_uiMessage("Move valid", "Confirm on touchscreen");
     cgm_ledShowMoveSquares(cgm.committedFEN, validated);
+    // Update pendingFEN with the validated result — important for promotions
+    // where the pawn must be replaced with the chosen piece before sending.
+    cgm.pendingFEN = validated;
     cgm_setState(CGM_LOCAL_TURN_CONFIRM);
 }
 
@@ -1385,6 +1476,10 @@ void cgm_tick()
 
     case CGM_LOCAL_TURN_WAIT_FOR_BOARD:
         cgm_handleLocalTurnWaitForBoard();
+        break;
+
+    case CGM_LOCAL_TURN_PROMOTION:
+        cgm_handleLocalTurnPromotion();
         break;
 
     case CGM_LOCAL_TURN_VALIDATE:

@@ -436,6 +436,118 @@ void drawPiecePickedUp(const char *squareName)
   screen.print(buf);
 }
 
+void drawPromotionPicker(bool isWhite)
+{
+  // Clear the right info panel area with a dark navy background
+  screen.fillRect(RPANEL_X - 2, BOARD_Y, RPANEL_W + 2, 8 * CELL_SIZE, (uint16_t)0x18C3);
+
+  // Title
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(RPANEL_X + 6, BOARD_Y + 10);
+  screen.print("Promote pawn to:");
+
+  // Four buttons: Queen, Rook, Bishop, Knight
+  struct
+  {
+    const char *label;
+    uint16_t bg;
+    char piece; // for future use
+  } choices[4] = {
+      {"Queen", 0xFEA0, isWhite ? 'Q' : 'q'},
+      {"Rook", 0x7BEF, isWhite ? 'R' : 'r'},
+      {"Bishop", 0x07E0, isWhite ? 'B' : 'b'},
+      {"Knight", 0x001F, isWhite ? 'N' : 'n'},
+  };
+
+  const int btnX = PROMO_BTN_X;
+  const int btnW = PROMO_BTN_W;
+  const int btnH = PROMO_BTN_H;
+
+  for (int i = 0; i < 4; i++)
+  {
+    int btnY = PROMO_BTN_Y0 + i * (btnH + PROMO_BTN_GAP);
+    screen.fillRect(btnX, btnY, btnW, btnH, choices[i].bg);
+    screen.drawRect(btnX, btnY, btnW, btnH, COLOR_RGB565_WHITE);
+
+    // Piece letter (size-3) on the left
+    screen.setTextSize(3);
+    screen.setTextColor(COLOR_RGB565_WHITE);
+    screen.setCursor(btnX + 8, btnY + (btnH - 24) / 2);
+    screen.print(choices[i].piece);
+
+    // Piece name (size-2) to the right of the letter
+    screen.setTextSize(2);
+    screen.setCursor(btnX + 34, btnY + (btnH - 16) / 2);
+    screen.print(choices[i].label);
+  }
+}
+
+void drawEdgeCaseMenuScreen(const char *const labels[], uint8_t count, int8_t selectedIdx)
+{
+  screen.fillScreen(COLOR_RGB565_WHITE);
+
+  // Header bar
+  screen.fillRect(0, 0, SCR_W, 36, (uint16_t)0x2945);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(6, 14);
+  screen.print("Edge Case Test  ");
+  screen.setTextColor((uint16_t)0x07FF);
+  screen.print("Tap a scenario  |  Back: top-left");
+
+  // Draw one button per scenario
+  const int BTN_X = 20;
+  const int BTN_W = SCR_W - 40;
+  const int BTN_H = 44;
+  const int BTN_GAP = 6;
+  const int START_Y = 46;
+
+  for (int i = 0; i < (int)count; i++)
+  {
+    int btnY = START_Y + i * (BTN_H + BTN_GAP);
+    bool sel = (i == selectedIdx);
+    uint16_t bg = sel ? (uint16_t)0x0460 : (uint16_t)0x2945;
+    screen.fillRect(BTN_X, btnY, BTN_W, BTN_H, bg);
+    screen.drawRect(BTN_X, btnY, BTN_W, BTN_H, sel ? COLOR_RGB565_WHITE : (uint16_t)0x7BEF);
+    screen.setTextSize(1);
+    screen.setTextColor(COLOR_RGB565_WHITE);
+    screen.setCursor(BTN_X + 10, btnY + (BTN_H - 8) / 2);
+    screen.print(labels[i]);
+  }
+}
+
+void drawEdgeCaseStatus(const char *scenarioName, const char *instruction, int8_t result)
+{
+  // Only redraws the status panel area below the board (status bar region +
+  // a narrow overlay bar just above it), keeping the board intact.
+  const int BAR_H = 46;
+  const int BAR_Y = STATUS_Y - BAR_H;
+
+  // Background strip
+  uint16_t bg = (result == 1)    ? COLOR_RGB565_GREEN
+                : (result == -1) ? COLOR_RGB565_RED
+                                 : (uint16_t)0x2945;
+  screen.fillRect(0, BAR_Y, SCR_W, BAR_H, bg);
+  screen.drawFastHLine(0, BAR_Y, SCR_W, (uint16_t)0x7BEF);
+
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+
+  // Line 1: scenario name
+  screen.setCursor(6, BAR_Y + 6);
+  screen.print(scenarioName);
+
+  // Line 2: instruction or result badge
+  screen.setCursor(6, BAR_Y + 22);
+  if (result == 1)
+    screen.print("PASS - move accepted!");
+  else if (result == -1)
+    screen.print("FAIL - move rejected");
+  else
+    screen.print(instruction);
+}
+
 void drawErrorScreen(const char *title, const char *detail)
 {
   // Red banner at top

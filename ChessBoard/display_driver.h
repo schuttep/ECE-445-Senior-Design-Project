@@ -71,6 +71,27 @@ void drawPiecePickedUp(const char *squareName);
 // flipped must match the board orientation used when the screen was drawn.
 void drawBoardSyncOverlay(const String &logicalFEN, const String &physicalFEN, bool flipped);
 
+// Promotion picker — drawn over the right info panel while the player chooses.
+// isWhite: true = local player is white (shows uppercase piece letters).
+void drawPromotionPicker(bool isWhite);
+
+// Touch hit-test regions for the promotion picker (landscape 480×320).
+// Button order: 0=Queen, 1=Rook, 2=Bishop, 3=Knight.
+#define PROMO_BTN_X 276 // RPANEL_X + 4
+#define PROMO_BTN_W 192 // RPANEL_W - 8
+#define PROMO_BTN_H 52
+#define PROMO_BTN_Y0 68 // top of first button (BOARD_Y + 28)
+#define PROMO_BTN_GAP 6 // vertical gap between buttons
+
+// Edge-case test scenario menu (full screen).
+// Labels is an array of 'count' C-strings. Selected index is highlighted.
+void drawEdgeCaseMenuScreen(const char *const labels[], uint8_t count, int8_t selectedIdx);
+
+// Status overlay for the edge-case test while the player performs a move.
+// Shows the scenario name, a short instruction line, and a PASS/FAIL badge
+// once the result is known.  result: 0=pending, 1=pass, -1=fail.
+void drawEdgeCaseStatus(const char *scenarioName, const char *instruction, int8_t result);
+
 // Full-screen error display: red banner, bold title, wrapped detail text.
 void drawErrorScreen(const char *title, const char *detail);
 

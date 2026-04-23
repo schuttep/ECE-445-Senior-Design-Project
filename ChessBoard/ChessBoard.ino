@@ -7,7 +7,6 @@
 #include "display_driver.h"
 #include "wifi_driver.h"
 #include "api_connect.h"
-#include "LED_driver.h"
 #include "ADC_driver.h"
 #include "wifi_manager.h"
 #include "gameloop.h"
@@ -53,7 +52,7 @@ enum ScreenState
   MENU,
   GAME,
   BOARD_TEST,
-  ADC_ID_TEST,
+  EDGE_CASE_TEST,
   WIFI_LIST,
   WIFI_PASS_SCREEN
 };
@@ -72,8 +71,8 @@ static String gs_lastPendingFEN;
 static char gs_liftSquare[3] = {0};
 static bool gs_liftShown = false;
 static String gs_lastTurnStatus;     // tracks last status bar turn message
-static String gs_lastSyncPhysFEN;    // tracks last physical FEN used for LED sync
 static String gs_lastOverlayPhysFEN; // tracks last physical FEN used for display overlay
+static bool gs_lastPromoState = false;
 
 // Physical board FEN buffer (72 bytes = worst-case FEN board + null)
 static char gs_boardFENBuf[72];
@@ -97,8 +96,8 @@ void handleWifiListTouch(int tx, int ty);
 void handleWifiPassTouch(int tx, int ty);
 void runBoardTests();
 void drawBoardTestLive();
-void showAdcIdScreen();
-void drawAdcIdLive();
+void showEdgeCaseMenuScreen();
+void handleEdgeCaseTouch(int tx, int ty);
 static void waitForTap();
 
 // ===================== SCREEN HELPERS =====================
@@ -109,7 +108,7 @@ void showMenuScreen()
 
   displayButton(JOIN_BTN_X, JOIN_BTN_Y, JOIN_BTN_W, JOIN_BTN_H, COLOR_RGB565_BLUE, "Join Game");
   displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, 0xFD20, "Create Game");
-  displayButton(ADCID_BTN_X, ADCID_BTN_Y, ADCID_BTN_W, ADCID_BTN_H, 0x630C, "ADC ID Test");
+  displayButton(ADCID_BTN_X, ADCID_BTN_Y, ADCID_BTN_W, ADCID_BTN_H, 0x630C, "Edge Case Test");
 
   menuShownAt = millis();
 }
@@ -126,9 +125,8 @@ void showGameScreen()
   gs_liftSquare[0] = 0;
   gs_liftShown = false;
   gs_lastTurnStatus = "";
-  gs_lastSyncPhysFEN = "";
   gs_lastOverlayPhysFEN = "";
-  gs_lastOverlayPhysFEN = "";
+  gs_lastPromoState = false;
   // Note: the caller (touch handler) must have already called cgm_createGameNow()
   // or cgm_joinGameNow() before calling showGameScreen().
 }
@@ -319,7 +317,7 @@ void handleTouch()
     if (tx >= ADCID_BTN_X && tx <= ADCID_BTN_X + ADCID_BTN_W &&
         ty >= ADCID_BTN_Y && ty <= ADCID_BTN_Y + ADCID_BTN_H)
     {
-      showAdcIdScreen();
+      showEdgeCaseMenuScreen();
       return;
     }
   }
@@ -342,6 +340,26 @@ void handleTouch()
       return;
     }
 
+    // Promotion picker
+    if (cgm_isChoosingPromotion())
+    {
+      const int pieces[4] = {'Q', 'R', 'B', 'N'};
+      for (int i = 0; i < 4; i++)
+      {
+        int btnY = PROMO_BTN_Y0 + i * (PROMO_BTN_H + PROMO_BTN_GAP);
+        if (tx >= PROMO_BTN_X && tx <= PROMO_BTN_X + PROMO_BTN_W &&
+            ty >= btnY && ty <= btnY + PROMO_BTN_H)
+        {
+          // Normalise to the correct colour: local player picks the right case
+          char piece = cgm_isLocalPlayerWhite() ? (char)pieces[i]
+                                                : (char)tolower(pieces[i]);
+          cgm_selectPromotionPiece(piece);
+          return;
+        }
+      }
+      return; // tap outside buttons — ignore
+    }
+
     if (cgm_isConfirming())
     {
       if (tx >= CONFIRM_BTN_X && tx <= CONFIRM_BTN_X + CONFIRM_BTN_W &&
@@ -362,9 +380,9 @@ void handleTouch()
   {
     showMenuScreen();
   }
-  else if (currentScreen == ADC_ID_TEST)
+  else if (currentScreen == EDGE_CASE_TEST)
   {
-    showMenuScreen();
+    handleEdgeCaseTouch(tx, ty);
   }
   else if (currentScreen == WIFI_LIST)
   {
@@ -396,7 +414,6 @@ void setup()
 
   setupDisplayHardware();
   initDisplay();
-  initLEDs();
   initADCs();
 
   // Initialise game FSM (idle, no game started)
@@ -410,12 +427,10 @@ void setup()
   {
     displayStatusBar("No network found - select WiFi", COLOR_RGB565_RED);
     delay(1200);
-    demoSequence();
     showWifiListScreen();
     return;
   }
 
-  demoSequence();
   showMenuScreen();
 }
 
@@ -579,103 +594,173 @@ void drawBoardTestLive()
   }
 }
 
-// ===================== ADC ID TEST =====================
-// Scans all 8 raw ADC addresses (0x10-0x17) and all 8 channels.
-// Shows which address+channel is currently seeing a magnet.
-// Bypasses ADC_COL_TO_CHIP so the physical wiring can be mapped.
+// ===================== EDGE CASE TEST =====================
+// Each scenario defines: a setup FEN, whose turn it is, castling rights,
+// a display name, and a short instruction shown at the bottom of the screen.
 
-static unsigned long lastAdcIdUpdate = 0;
-
-void showAdcIdScreen()
+struct EdgeCaseScenario
 {
-  currentScreen = ADC_ID_TEST;
-  lastAdcIdUpdate = 0;
+  const char *name;        // shown in menu and status bar
+  const char *instruction; // what the tester should do
+  const char *fen;         // board FEN to inject as committed position
+  bool whiteToMove;
+  bool castling[4]; // [WK, WQ, BK, BQ]
+};
 
-  screen.fillScreen(COLOR_RGB565_BLACK);
-  screen.fillRect(0, 0, 480, 36, (uint16_t)0x2945);
-  screen.setTextSize(1);
-  screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(6, 14);
-  screen.print("ADC ID Test  ");
-  screen.setTextColor((uint16_t)0x07FF);
-  screen.print("Tap anywhere to exit");
+static const EdgeCaseScenario ECT_SCENARIOS[] = {
+    {"White K-side Castle",
+     "Move King e1->g1 (castle k-side)",
+     "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R",
+     true,
+     {true, true, true, true}},
+    {"White Q-side Castle",
+     "Move King e1->c1 (castle q-side)",
+     "r3kbnr/ppp1pppp/2nq4/3p4/3P4/2NQ4/PPP1PPPP/R3KBNR",
+     true,
+     {true, true, true, true}},
+    {"Black K-side Castle",
+     "Move King e8->g8 (castle k-side)",
+     "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R",
+     false,
+     {true, true, true, true}},
+    {"En Passant (White)",
+     "White pawn e5 captures d6 en passant",
+     "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR",
+     true,
+     {true, true, true, true}},
+    {"En Passant (Black)",
+     "Black pawn d4 captures e3 en passant",
+     "rnbqkbnr/pppp1ppp/8/8/3pP3/8/PPP2PPP/RNBQKBNR",
+     false,
+     {true, true, true, true}},
+    {"Promotion (White)",
+     "Move white pawn d7->d8 and choose piece",
+     "8/3P4/8/8/8/8/8/4K2k",
+     true,
+     {false, false, false, false}},
+    {"Promotion (Black)",
+     "Move black pawn d2->d1 and choose piece",
+     "4k2K/8/8/8/8/8/3p4/8",
+     false,
+     {false, false, false, false}},
+};
 
-  // Column headers: CH0 - CH7
-  screen.setTextColor((uint16_t)0x7BEF);
-  for (int ch = 0; ch < 8; ch++)
-  {
-    screen.setCursor(70 + ch * 50, 44);
-    screen.print("CH");
-    screen.print(ch);
-  }
+static constexpr uint8_t ECT_COUNT = sizeof(ECT_SCENARIOS) / sizeof(ECT_SCENARIOS[0]);
 
-  // Row labels: 0x10 - 0x17
-  for (int adc = 0; adc < 8; adc++)
-  {
-    screen.setCursor(4, 60 + adc * 28);
-    screen.print("0x1");
-    screen.print((char)('0' + adc));
-  }
+// Edge case test state
+static int8_t ect_selectedScenario = -1; // -1 = in menu, >= 0 = running a scenario
+static int8_t ect_result = 0;            //  0 = pending, 1 = pass, -1 = fail
+static String ect_lastCommitted;         // tracks committed FEN for pass/fail detection
+static String ect_lastPending;           // tracks pending FEN for status updates
+
+static const char *ect_labelPtrs[ECT_COUNT]; // for drawEdgeCaseMenuScreen
+
+static void ect_buildLabelPtrs()
+{
+  for (int i = 0; i < ECT_COUNT; i++)
+    ect_labelPtrs[i] = ECT_SCENARIOS[i].name;
 }
 
-void drawAdcIdLive()
+void showEdgeCaseMenuScreen()
 {
-  static int16_t adcid_last[8][8]; // [adc][ch]
+  currentScreen = EDGE_CASE_TEST;
+  ect_selectedScenario = -1;
+  ect_result = 0;
+  ect_lastCommitted = "";
+  ect_lastPending = "";
+  ect_buildLabelPtrs();
+  drawEdgeCaseMenuScreen(ect_labelPtrs, ECT_COUNT, -1);
+}
 
-  bool anyChange = false;
-  for (int adc = 0; adc < 8; adc++)
+static void ect_startScenario(int8_t idx)
+{
+  ect_selectedScenario = idx;
+  ect_result = 0;
+  ect_lastCommitted = "";
+  ect_lastPending = "";
+
+  const EdgeCaseScenario &sc = ECT_SCENARIOS[idx];
+
+  // Reset server state so it starts clean for this edge case
+  resetGame();
+
+  // Inject the FEN into the game FSM
+  cgm_loadEdgeCaseFEN(String(sc.fen), sc.whiteToMove, sc.castling);
+
+  // Draw the game screen and overlay status
+  drawGameScreen(wifiConnected, true, String(sc.fen), sc.whiteToMove);
+  drawEdgeCaseStatus(sc.name, sc.instruction, 0);
+}
+
+void handleEdgeCaseTouch(int tx, int ty)
+{
+  // Back button (top-left)
+  if (ty < 38 && tx < 80)
   {
-    uint8_t addr = 0x10 + adc;
-    for (int ch = 0; ch < 8; ch++)
+    if (ect_selectedScenario >= 0)
     {
-      // Read raw channel directly — no COL_TO_CHIP remapping
-      Wire1.beginTransmission(addr);
-      Wire1.write(0x08);
-      Wire1.write(0x10);
-      Wire1.write(0x00); // manual mode
-      Wire1.endTransmission();
-      Wire1.beginTransmission(addr);
-      Wire1.write(0x08);
-      Wire1.write(0x11);
-      Wire1.write(ch & 0x0F); // select ch
-      Wire1.endTransmission();
-      delayMicroseconds(50);
+      // Exit scenario back to menu
+      cgm_resetManager();
+      showEdgeCaseMenuScreen();
+    }
+    else
+    {
+      showMenuScreen();
+    }
+    return;
+  }
 
-      int16_t val = 0;
-      if (Wire1.requestFrom(addr, (uint8_t)2) == 2)
+  if (ect_selectedScenario >= 0)
+  {
+    // Promotion picker intercept
+    if (cgm_isChoosingPromotion())
+    {
+      const int pieces[4] = {'Q', 'R', 'B', 'N'};
+      for (int i = 0; i < 4; i++)
       {
-        uint8_t msb = Wire1.read();
-        uint8_t lsb = Wire1.read();
-        uint16_t raw = ((uint16_t)msb << 4) | (lsb >> 4);
-        val = (int16_t)((int)raw - 2048);
+        int btnY = PROMO_BTN_Y0 + i * (PROMO_BTN_H + PROMO_BTN_GAP);
+        if (tx >= PROMO_BTN_X && tx <= PROMO_BTN_X + PROMO_BTN_W &&
+            ty >= btnY && ty <= btnY + PROMO_BTN_H)
+        {
+          char piece = cgm_isLocalPlayerWhite() ? (char)pieces[i] : (char)tolower(pieces[i]);
+          cgm_selectPromotionPiece(piece);
+          return;
+        }
       }
+      return;
+    }
 
-      if (val != adcid_last[adc][ch])
+    // Confirm / cancel intercept
+    if (cgm_isConfirming())
+    {
+      if (tx >= CONFIRM_BTN_X && tx <= CONFIRM_BTN_X + CONFIRM_BTN_W &&
+          ty >= CONFIRM_BTN_Y && ty <= CONFIRM_BTN_Y + CONFIRM_BTN_H)
       {
-        adcid_last[adc][ch] = val;
-        anyChange = true;
-
-        int px = 70 + ch * 50;
-        int py = 56 + adc * 28;
-
-        bool active = (abs((int)val) >= 300);
-        screen.fillRect(px, py, 46, 22,
-                        active ? (val > 0 ? COLOR_RGB565_GREEN : (uint16_t)0xFD20)
-                               : (uint16_t)0x2104);
-        screen.setTextSize(1);
-        screen.setTextColor(COLOR_RGB565_WHITE);
-        screen.setCursor(px + 2, py + 7);
-        if (active)
-        {
-          screen.print(val > 0 ? "+" : "-");
-          screen.print(abs((int)val));
-        }
-        else
-        {
-          screen.print("  --");
-        }
+        cgm_confirmPendingMove();
+        return;
+      }
+      if (tx >= CANCEL_BTN_X && tx <= CANCEL_BTN_X + CANCEL_BTN_W &&
+          ty >= CANCEL_BTN_Y && ty <= CANCEL_BTN_Y + CANCEL_BTN_H)
+      {
+        cgm_cancelPendingMove();
+        return;
       }
     }
+
+    // Any other tap while running: return to menu
+    cgm_resetManager();
+    showEdgeCaseMenuScreen();
+    return;
+  }
+
+  // ect_selectedScenario < 0: we are in the menu — tap a row to start a scenario
+  {
+    const int BTN_H = 44;
+    const int BTN_GAP = 6;
+    const int START_Y = 46;
+    int idx = (ty - START_Y) / (BTN_H + BTN_GAP);
+    if (idx >= 0 && idx < ECT_COUNT)
+      ect_startScenario(idx);
   }
 }
 
@@ -715,21 +800,30 @@ void loop()
     cgm_tick();
 
     // ----------------------------------------------------------------
-    // 2b. Update LEDs + display overlay for physical/logical mismatches
+    // 2b. Update display overlay for physical/logical mismatches
     // ----------------------------------------------------------------
     {
       const String &committed = cgm_getCommittedFEN();
       String physNow(gs_boardFENBuf);
-      if (committed.length() > 0 && physNow != gs_lastSyncPhysFEN)
-      {
-        gs_lastSyncPhysFEN = physNow;
-        lightBoardSync(committed.c_str(), physNow.c_str());
-      }
       if (committed.length() > 0 && physNow != gs_lastOverlayPhysFEN)
       {
         gs_lastOverlayPhysFEN = physNow;
         drawBoardSyncOverlay(committed, physNow, !cgm_isLocalPlayerWhite());
       }
+    }
+
+    // ----------------------------------------------------------------
+    // 2c. Promotion picker — shown once when the state is entered
+    // ----------------------------------------------------------------
+    if (cgm_isChoosingPromotion() && !gs_lastPromoState)
+    {
+      gs_lastPromoState = true;
+      drawPromotionPicker(cgm_isLocalPlayerWhite());
+    }
+    else if (!cgm_isChoosingPromotion() && gs_lastPromoState)
+    {
+      gs_lastPromoState = false;
+      // Board will be redrawn naturally when pendingFEN changes after validation
     }
 
     // ----------------------------------------------------------------
@@ -875,12 +969,55 @@ void loop()
     }
   }
 
-  if (currentScreen == ADC_ID_TEST)
+  if (currentScreen == EDGE_CASE_TEST && ect_selectedScenario >= 0)
   {
-    if (now - lastAdcIdUpdate >= 150)
+    // Feed physical board and tick FSM so the edge case is validated live
+    readBoardFEN(gs_boardFENBuf, cgm_isLocalPlayerWhite());
+    cgm_setPhysicalBoardFEN(String(gs_boardFENBuf));
+    cgm_tick();
+
+    // Show promotion picker if needed
+    if (cgm_isChoosingPromotion() && !gs_lastPromoState)
     {
-      lastAdcIdUpdate = now;
-      drawAdcIdLive();
+      gs_lastPromoState = true;
+      drawPromotionPicker(cgm_isLocalPlayerWhite());
+    }
+    else if (!cgm_isChoosingPromotion() && gs_lastPromoState)
+    {
+      gs_lastPromoState = false;
+    }
+
+    const String &committed = cgm_getCommittedFEN();
+    const String &pending = cgm_getPendingFEN();
+    const EdgeCaseScenario &sc = ECT_SCENARIOS[ect_selectedScenario];
+
+    // Detect a new committed FEN (move was accepted)
+    if (ect_result == 0 && committed != ect_lastCommitted &&
+        ect_lastCommitted.length() > 0)
+    {
+      ect_result = 1; // PASS
+      drawEdgeCaseStatus(sc.name, sc.instruction, 1);
+    }
+    // Detect a new pending FEN (confirm overlay shown)
+    else if (ect_result == 0 && pending.length() > 0 && pending != ect_lastPending)
+    {
+      ect_lastPending = pending;
+      drawEdgeCaseStatus(sc.name, "Confirm or cancel the move", 0);
+    }
+
+    // Update baseline after first tick so we don't immediately fire PASS
+    if (ect_lastCommitted.length() == 0 && committed.length() > 0)
+      ect_lastCommitted = committed;
+
+    // Draw board sync overlay while pieces are being set up
+    if (ect_result == 0)
+    {
+      String physNow(gs_boardFENBuf);
+      if (physNow != gs_lastOverlayPhysFEN && committed.length() > 0)
+      {
+        gs_lastOverlayPhysFEN = physNow;
+        drawBoardSyncOverlay(committed, physNow, !cgm_isLocalPlayerWhite());
+      }
     }
   }
 }

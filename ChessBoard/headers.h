@@ -14,8 +14,6 @@
 #define COLOR_RGB565_YELLOW 0xFFE0
 #endif
 
-#define NUM_LEDS 64
-#define LED_PIN 6
 #define SDA_DAQ 38
 #define SCL_DAQ 39
 #define SCR_SCLK 45
