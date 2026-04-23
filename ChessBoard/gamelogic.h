@@ -48,7 +48,8 @@ void updateCastlingFlags(char before[8][8],
                          int r1, int c1, int r2, int c2,
                          char movedPiece, char capturedPiece,
                          bool oldFlags[4], bool newFlags[4]);
-bool hasAnyLegalMove(char board[8][8], bool whiteToMove, const bool castling[4]);
+bool hasAnyLegalMove(char board[8][8], bool whiteToMove, const bool castling[4],
+                     const char *enPassantSquare = nullptr);
 
 // Main validator
 // enPassantSquare: en-passant target square in algebraic notation (e.g. "e3"),

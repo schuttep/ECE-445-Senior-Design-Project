@@ -592,10 +592,45 @@ void updateCastlingFlags(char before[8][8],
 }
 
 // Returns true if side to move has at least one legal move
-// This includes ordinary moves, promotions, and castling
-bool hasAnyLegalMove(char board[8][8], bool whiteToMove, const bool castling[4])
+// This includes ordinary moves, promotions, castling, and en passant
+bool hasAnyLegalMove(char board[8][8], bool whiteToMove, const bool castling[4],
+                     const char *enPassantSquare)
 {
     char testBoard[8][8];
+
+    // Check en passant captures first (only 3-square change, can be the sole legal escape)
+    if (enPassantSquare != nullptr && enPassantSquare[0] != '\0')
+    {
+        int epCol = enPassantSquare[0] - 'a';
+        int epRow = '8' - enPassantSquare[1];
+        if (epCol >= 0 && epCol < 8 && epRow >= 0 && epRow < 8 &&
+            board[epRow][epCol] == '.')
+        {
+            char movingPawn = whiteToMove ? 'P' : 'p';
+            int srcRow = whiteToMove ? epRow + 1 : epRow - 1;
+            int capRow = whiteToMove ? epRow + 1 : epRow - 1;
+            // Try both adjacent files
+            for (int dc = -1; dc <= 1; dc += 2)
+            {
+                int srcCol = epCol + dc;
+                if (srcCol < 0 || srcCol > 7)
+                    continue;
+                if (board[srcRow][srcCol] != movingPawn)
+                    continue;
+                // Verify the captured pawn is on the correct square
+                char oppPawn = whiteToMove ? 'p' : 'P';
+                if (board[capRow][epCol] != oppPawn)
+                    continue;
+                // Apply the en passant and check for self-check
+                copyBoard(board, testBoard);
+                testBoard[srcRow][srcCol] = '.';
+                testBoard[capRow][epCol] = '.';
+                testBoard[epRow][epCol] = movingPawn;
+                if (!isKingInCheck(testBoard, whiteToMove))
+                    return true;
+            }
+        }
+    }
 
     for (int r1 = 0; r1 < 8; r1++)
     {
@@ -1023,7 +1058,7 @@ String validateMoveAndReturnFEN(const String &beforeFEN,
     // ----------------------------
     bool opponentWhite = !whiteToMove;
     bool opponentInCheck = isKingInCheck(after, opponentWhite);
-    bool opponentHasLegalMove = hasAnyLegalMove(after, opponentWhite, newCastling);
+    bool opponentHasLegalMove = hasAnyLegalMove(after, opponentWhite, newCastling, nullptr);
     bool opponentCheckmate = opponentInCheck && !opponentHasLegalMove;
     bool opponentStalemate = !opponentInCheck && !opponentHasLegalMove;
 

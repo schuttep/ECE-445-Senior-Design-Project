@@ -85,7 +85,8 @@ void drawPromotionPicker(bool isWhite);
 
 // Edge-case test scenario menu (full screen).
 // Labels is an array of 'count' C-strings. Selected index is highlighted.
-void drawEdgeCaseMenuScreen(const char *const labels[], uint8_t count, int8_t selectedIdx);
+void drawEdgeCaseMenuScreen(const char *const labels[], uint8_t count, int8_t selectedIdx,
+                            int8_t scrollOffset = 0);
 
 // Status overlay for the edge-case test while the player performs a move.
 // Shows the scenario name, a short instruction line, and a PASS/FAIL badge

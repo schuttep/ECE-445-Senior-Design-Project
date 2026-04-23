@@ -483,37 +483,57 @@ void drawPromotionPicker(bool isWhite)
   }
 }
 
-void drawEdgeCaseMenuScreen(const char *const labels[], uint8_t count, int8_t selectedIdx)
+void drawEdgeCaseMenuScreen(const char *const labels[], uint8_t count, int8_t selectedIdx,
+                            int8_t scrollOffset)
 {
   screen.fillScreen(COLOR_RGB565_WHITE);
 
-  // Header bar
-  screen.fillRect(0, 0, SCR_W, 36, (uint16_t)0x2945);
-  screen.setTextSize(1);
-  screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(6, 14);
-  screen.print("Edge Case Test  ");
-  screen.setTextColor((uint16_t)0x07FF);
-  screen.print("Tap a scenario  |  Back: top-left");
-
-  // Draw one button per scenario
+  const int PAGE = 5; // max rows visible at once
   const int BTN_X = 20;
   const int BTN_W = SCR_W - 40;
   const int BTN_H = 44;
   const int BTN_GAP = 6;
   const int START_Y = 46;
 
-  for (int i = 0; i < (int)count; i++)
+  // ---------- Header bar ----------
+  screen.fillRect(0, 0, SCR_W, 36, (uint16_t)0x2945);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(6, 14);
+  screen.print("Edge Case Tests");
+  screen.setTextColor((uint16_t)0x07FF);
+  screen.setCursor(150, 14);
+  screen.print("Tap scenario  Back: top-left");
+
+  // Scroll arrows (top-right)  ▲ at x=400-439  ▼ at x=440-479
+  int maxScroll = (int)count - PAGE;
+  if (maxScroll < 0)
+    maxScroll = 0;
+
+  screen.setTextSize(2);
+  // ▲ up arrow
+  screen.setTextColor(scrollOffset > 0 ? COLOR_RGB565_WHITE : (uint16_t)0x4208);
+  screen.setCursor(402, 8);
+  screen.print("^");
+  // ▼ down arrow  ("v" renders well at size 2)
+  screen.setTextColor(scrollOffset < maxScroll ? COLOR_RGB565_WHITE : (uint16_t)0x4208);
+  screen.setCursor(446, 8);
+  screen.print("v");
+
+  // ---------- Buttons ----------
+  int visibleCount = min((int)count - scrollOffset, PAGE);
+  for (int i = 0; i < visibleCount; i++)
   {
+    int realIdx = scrollOffset + i;
     int btnY = START_Y + i * (BTN_H + BTN_GAP);
-    bool sel = (i == selectedIdx);
+    bool sel = (realIdx == selectedIdx);
     uint16_t bg = sel ? (uint16_t)0x0460 : (uint16_t)0x2945;
     screen.fillRect(BTN_X, btnY, BTN_W, BTN_H, bg);
     screen.drawRect(BTN_X, btnY, BTN_W, BTN_H, sel ? COLOR_RGB565_WHITE : (uint16_t)0x7BEF);
     screen.setTextSize(1);
     screen.setTextColor(COLOR_RGB565_WHITE);
     screen.setCursor(BTN_X + 10, btnY + (BTN_H - 8) / 2);
-    screen.print(labels[i]);
+    screen.print(labels[realIdx]);
   }
 }
 

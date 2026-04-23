@@ -35,7 +35,7 @@ void cgm_selectPromotionPiece(char piece); // Called by touch handler to pick a 
 // Load an arbitrary FEN as the committed position and enter local-turn wait.
 // Designed for edge-case testing — bypasses normal game init and server polling.
 // castlingRights is a 4-element bool array [WK, WQ, BK, BQ]; pass nullptr for all-true.
-void cgm_loadEdgeCaseFEN(const String &fen, bool whiteToMove, const bool *castlingRights = nullptr);
+void cgm_loadEdgeCaseFEN(const String &fen, bool whiteToMove, const bool *castlingRights = nullptr, const char *enPassantSquare = nullptr);
 
 // ---------------------------------------------------------------------------
 // State queries — used by ChessBoard.ino to drive the display overlay.

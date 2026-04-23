@@ -604,51 +604,49 @@ struct EdgeCaseScenario
   const char *instruction; // what the tester should do
   const char *fen;         // board FEN to inject as committed position
   bool whiteToMove;
-  bool castling[4]; // [WK, WQ, BK, BQ]
+  bool castling[4];        // [WK, WQ, BK, BQ]
+  const char *enPassantSq; // en passant target square (e.g. "d6") or nullptr
 };
 
 static const EdgeCaseScenario ECT_SCENARIOS[] = {
-    {"White K-side Castle",
+    {"Castling (White K-side)",
      "Move King e1->g1 (castle k-side)",
      "r1bqk2r/pppp1ppp/2n2n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R",
      true,
-     {true, true, true, true}},
-    {"White Q-side Castle",
-     "Move King e1->c1 (castle q-side)",
-     "r3kbnr/ppp1pppp/2nq4/3p4/3P4/2NQ4/PPP1PPPP/R3KBNR",
-     true,
-     {true, true, true, true}},
-    {"Black K-side Castle",
-     "Move King e8->g8 (castle k-side)",
-     "rnbqk2r/pppp1ppp/5n2/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R",
-     false,
-     {true, true, true, true}},
+     {true, true, true, true},
+     nullptr},
     {"En Passant (White)",
      "White pawn e5 captures d6 en passant",
      "rnbqkbnr/ppp1p1pp/8/3pPp2/8/8/PPPP1PPP/RNBQKBNR",
      true,
-     {true, true, true, true}},
+     {true, true, true, true},
+     "d6"}, // black just pushed d7->d5
     {"En Passant (Black)",
      "Black pawn d4 captures e3 en passant",
      "rnbqkbnr/pppp1ppp/8/8/3pP3/8/PPP2PPP/RNBQKBNR",
      false,
-     {true, true, true, true}},
+     {true, true, true, true},
+     "e3"}, // white just pushed e2->e4
     {"Promotion (White)",
      "Move white pawn d7->d8 and choose piece",
      "8/3P4/8/8/8/8/8/4K2k",
      true,
-     {false, false, false, false}},
+     {false, false, false, false},
+     nullptr},
     {"Promotion (Black)",
      "Move black pawn d2->d1 and choose piece",
      "4k2K/8/8/8/8/8/3p4/8",
      false,
-     {false, false, false, false}},
+     {false, false, false, false},
+     nullptr},
 };
 
 static constexpr uint8_t ECT_COUNT = sizeof(ECT_SCENARIOS) / sizeof(ECT_SCENARIOS[0]);
+static constexpr int ECT_PAGE = 5; // max visible rows at once
 
 // Edge case test state
 static int8_t ect_selectedScenario = -1; // -1 = in menu, >= 0 = running a scenario
+static int8_t ect_menuScroll = 0;        // first visible row index
 static int8_t ect_result = 0;            //  0 = pending, 1 = pass, -1 = fail
 static String ect_lastCommitted;         // tracks committed FEN for pass/fail detection
 static String ect_lastPending;           // tracks pending FEN for status updates
@@ -665,11 +663,12 @@ void showEdgeCaseMenuScreen()
 {
   currentScreen = EDGE_CASE_TEST;
   ect_selectedScenario = -1;
+  ect_menuScroll = 0;
   ect_result = 0;
   ect_lastCommitted = "";
   ect_lastPending = "";
   ect_buildLabelPtrs();
-  drawEdgeCaseMenuScreen(ect_labelPtrs, ECT_COUNT, -1);
+  drawEdgeCaseMenuScreen(ect_labelPtrs, ECT_COUNT, -1, 0);
 }
 
 static void ect_startScenario(int8_t idx)
@@ -684,8 +683,8 @@ static void ect_startScenario(int8_t idx)
   // Reset server state so it starts clean for this edge case
   resetGame();
 
-  // Inject the FEN into the game FSM
-  cgm_loadEdgeCaseFEN(String(sc.fen), sc.whiteToMove, sc.castling);
+  // Inject the FEN into the game FSM (pass en passant square if this scenario needs it)
+  cgm_loadEdgeCaseFEN(String(sc.fen), sc.whiteToMove, sc.castling, sc.enPassantSq);
 
   // Draw the game screen and overlay status
   drawGameScreen(wifiConnected, true, String(sc.fen), sc.whiteToMove);
@@ -694,18 +693,36 @@ static void ect_startScenario(int8_t idx)
 
 void handleEdgeCaseTouch(int tx, int ty)
 {
-  // Back button (top-left)
-  if (ty < 38 && tx < 80)
+  // Header strip (ty < 38) — back button and scroll arrows
+  if (ty < 38)
   {
-    if (ect_selectedScenario >= 0)
+    if (tx < 80)
     {
-      // Exit scenario back to menu
-      cgm_resetManager();
-      showEdgeCaseMenuScreen();
+      // Back button (top-left)
+      if (ect_selectedScenario >= 0)
+      {
+        cgm_resetManager();
+        showEdgeCaseMenuScreen();
+      }
+      else
+      {
+        showMenuScreen();
+      }
     }
-    else
+    else if (ect_selectedScenario < 0 && tx >= 400)
     {
-      showMenuScreen();
+      // Scroll arrows (▲ left, ▼ right) — only active in menu view
+      const int maxScroll = max(0, (int)ECT_COUNT - ECT_PAGE);
+      if (tx < 440 && ect_menuScroll > 0)
+      {
+        ect_menuScroll--;
+        drawEdgeCaseMenuScreen(ect_labelPtrs, ECT_COUNT, -1, ect_menuScroll);
+      }
+      else if (tx >= 440 && ect_menuScroll < maxScroll)
+      {
+        ect_menuScroll++;
+        drawEdgeCaseMenuScreen(ect_labelPtrs, ECT_COUNT, -1, ect_menuScroll);
+      }
     }
     return;
   }
@@ -758,9 +775,13 @@ void handleEdgeCaseTouch(int tx, int ty)
     const int BTN_H = 44;
     const int BTN_GAP = 6;
     const int START_Y = 46;
-    int idx = (ty - START_Y) / (BTN_H + BTN_GAP);
-    if (idx >= 0 && idx < ECT_COUNT)
-      ect_startScenario(idx);
+    int row = (ty - START_Y) / (BTN_H + BTN_GAP); // 0-based visible row
+    if (row >= 0 && row < ECT_PAGE)
+    {
+      int idx = ect_menuScroll + row; // real scenario index
+      if (idx < ECT_COUNT)
+        ect_startScenario(idx);
+    }
   }
 }
 

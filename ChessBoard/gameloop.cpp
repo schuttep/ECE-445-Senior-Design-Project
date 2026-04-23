@@ -896,7 +896,7 @@ void cgm_startGameNow()
 // Inject an arbitrary FEN for edge-case testing.
 // Bypasses normal game init: sets up the committed FEN directly and enters
 // board-sync → local-turn-wait so the player can set up pieces and make a move.
-void cgm_loadEdgeCaseFEN(const String &fen, bool whiteToMove, const bool *castlingRights)
+void cgm_loadEdgeCaseFEN(const String &fen, bool whiteToMove, const bool *castlingRights, const char *enPassantSquare)
 {
     cgm_resetManager();
     cgm.localIsWhite = whiteToMove; // tester plays the side to move
@@ -905,7 +905,17 @@ void cgm_loadEdgeCaseFEN(const String &fen, bool whiteToMove, const bool *castli
     cgm.whiteToMove = whiteToMove;
     cgm.pendingFEN = "";
     cgm.remoteIncomingFEN = "";
-    cgm.enPassantSquare[0] = '\0';
+    // Apply the en passant target square if provided (e.g. "d6" or "e3")
+    if (enPassantSquare != nullptr && enPassantSquare[0] != '\0')
+    {
+        cgm.enPassantSquare[0] = enPassantSquare[0];
+        cgm.enPassantSquare[1] = enPassantSquare[1];
+        cgm.enPassantSquare[2] = '\0';
+    }
+    else
+    {
+        cgm.enPassantSquare[0] = '\0';
+    }
     cgm.halfMoveClock = 0;
     cgm.sendRetryCount = 0;
     cgm.sendStartMs = 0;
