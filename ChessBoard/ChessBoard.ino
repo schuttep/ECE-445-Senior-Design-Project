@@ -31,10 +31,10 @@ DFRobot_ST7365P_320x480_HW_SPI screen(SCR_DC, SCR_CS, SCR_RST, SCR_BLK);
 #define CREATE_BTN_W 380
 #define CREATE_BTN_H 55
 
-#define WIFI_BTN_X 50
-#define WIFI_BTN_Y 215
-#define WIFI_BTN_W 380
-#define WIFI_BTN_H 55
+#define ADCID_BTN_X 50
+#define ADCID_BTN_Y 215
+#define ADCID_BTN_W 380
+#define ADCID_BTN_H 55
 
 // Confirm / Cancel in right info panel of the game screen
 #define CONFIRM_BTN_X 272
@@ -53,6 +53,7 @@ enum ScreenState
   MENU,
   GAME,
   BOARD_TEST,
+  ADC_ID_TEST,
   WIFI_LIST,
   WIFI_PASS_SCREEN
 };
@@ -70,7 +71,9 @@ static String gs_lastIncomingFEN;
 static String gs_lastPendingFEN;
 static char gs_liftSquare[3] = {0};
 static bool gs_liftShown = false;
-static String gs_lastTurnStatus; // tracks last status bar turn message
+static String gs_lastTurnStatus;     // tracks last status bar turn message
+static String gs_lastSyncPhysFEN;    // tracks last physical FEN used for LED sync
+static String gs_lastOverlayPhysFEN; // tracks last physical FEN used for display overlay
 
 // Physical board FEN buffer (72 bytes = worst-case FEN board + null)
 static char gs_boardFENBuf[72];
@@ -94,6 +97,8 @@ void handleWifiListTouch(int tx, int ty);
 void handleWifiPassTouch(int tx, int ty);
 void runBoardTests();
 void drawBoardTestLive();
+void showAdcIdScreen();
+void drawAdcIdLive();
 static void waitForTap();
 
 // ===================== SCREEN HELPERS =====================
@@ -104,7 +109,7 @@ void showMenuScreen()
 
   displayButton(JOIN_BTN_X, JOIN_BTN_Y, JOIN_BTN_W, JOIN_BTN_H, COLOR_RGB565_BLUE, "Join Game");
   displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, 0xFD20, "Create Game");
-  displayButton(WIFI_BTN_X, WIFI_BTN_Y, WIFI_BTN_W, WIFI_BTN_H, 0x7BEF, "WiFi Settings");
+  displayButton(ADCID_BTN_X, ADCID_BTN_Y, ADCID_BTN_W, ADCID_BTN_H, 0x630C, "ADC ID Test");
 
   menuShownAt = millis();
 }
@@ -121,9 +126,9 @@ void showGameScreen()
   gs_liftSquare[0] = 0;
   gs_liftShown = false;
   gs_lastTurnStatus = "";
-
-  // Show a placeholder board while the FSM initialises
-  drawGameScreen(wifiConnected, false, String("Starting game..."));
+  gs_lastSyncPhysFEN = "";
+  gs_lastOverlayPhysFEN = "";
+  gs_lastOverlayPhysFEN = "";
   // Note: the caller (touch handler) must have already called cgm_createGameNow()
   // or cgm_joinGameNow() before calling showGameScreen().
 }
@@ -287,8 +292,10 @@ void handleTouch()
     return;
   lastTouched = true;
 
-  uint16_t tx = touch._point.x;
-  uint16_t ty = touch._point.y;
+  // The GT911 reports raw portrait coordinates (x: 0–319, y: 0–479).
+  // setRotation(3) is 270° CW, so: landscape_x = 479 – raw_y, landscape_y = raw_x.
+  uint16_t tx = 479 - touch._point.y;
+  uint16_t ty = touch._point.x;
 
   if (currentScreen == MENU)
   {
@@ -309,10 +316,10 @@ void handleTouch()
       showGameScreen();
       return;
     }
-    if (tx >= WIFI_BTN_X && tx <= WIFI_BTN_X + WIFI_BTN_W &&
-        ty >= WIFI_BTN_Y && ty <= WIFI_BTN_Y + WIFI_BTN_H)
+    if (tx >= ADCID_BTN_X && tx <= ADCID_BTN_X + ADCID_BTN_W &&
+        ty >= ADCID_BTN_Y && ty <= ADCID_BTN_Y + ADCID_BTN_H)
     {
-      showWifiListScreen();
+      showAdcIdScreen();
       return;
     }
   }
@@ -355,6 +362,10 @@ void handleTouch()
   {
     showMenuScreen();
   }
+  else if (currentScreen == ADC_ID_TEST)
+  {
+    showMenuScreen();
+  }
   else if (currentScreen == WIFI_LIST)
   {
     handleWifiListTouch(tx, ty);
@@ -387,7 +398,6 @@ void setup()
   initDisplay();
   initLEDs();
   initADCs();
-  calibrateBaselines();
 
   // Initialise game FSM (idle, no game started)
   cgm_setup();
@@ -421,7 +431,6 @@ static int16_t bt_diff[8][8]; // last ADC diff for each square
 static int bt_lastChip = -1;  // last square that crossed threshold
 static int bt_lastCh = -1;
 static char bt_lastLabel[32] = "";
-
 // Draw the static frame (header + grid outline + legend) — call once.
 static void bt_drawFrame()
 {
@@ -522,19 +531,19 @@ void drawBoardTestLive()
 {
   bool anyChange = false;
 
-  for (int chip = 0; chip < 8; chip++)
+  for (int ch = 0; ch < 8; ch++) // ch = row (rank 8 down to 1)
   {
-    for (int ch = 0; ch < 8; ch++)
+    for (int chip = 0; chip < 8; chip++) // chip = column (file a..h)
     {
-      uint16_t raw = readRawChannel(chip, ch);
+      uint16_t raw = readRawChannel(ADC_COL_TO_CHIP[chip], ch);
       int16_t d;
       if (raw == 0xFFFF)
         d = 0; // no response
       else
-        d = (int16_t)((int)raw - (int)getBaseline(chip, ch));
+        d = (int16_t)((int)raw - 2048);
 
-      int16_t prev = bt_diff[chip][ch];
-      bt_diff[chip][ch] = d;
+      int16_t prev = bt_diff[ch][chip];
+      bt_diff[ch][chip] = d;
 
       // Detect a threshold crossing (piece placed or removed)
       bool wasActive = (abs((int)prev) >= BT_THRESHOLD);
@@ -546,8 +555,8 @@ void drawBoardTestLive()
         {
           bt_lastChip = chip;
           bt_lastCh = ch;
-          char file = 'a' + ch;
-          char rank = '8' - chip;
+          char file = 'a' + chip;
+          char rank = '8' - ch;
           const char *polarity = (d > 0) ? "N-pole" : "S-pole";
           snprintf(bt_lastLabel, sizeof(bt_lastLabel),
                    "%c%c  ADC%d ch%d  %s", file, rank, chip, ch, polarity);
@@ -567,6 +576,106 @@ void drawBoardTestLive()
     screen.setTextColor((uint16_t)0x07FF); // cyan
     screen.setCursor(lx, 138);
     screen.print(bt_lastLabel[0] ? bt_lastLabel : "(none)");
+  }
+}
+
+// ===================== ADC ID TEST =====================
+// Scans all 8 raw ADC addresses (0x10-0x17) and all 8 channels.
+// Shows which address+channel is currently seeing a magnet.
+// Bypasses ADC_COL_TO_CHIP so the physical wiring can be mapped.
+
+static unsigned long lastAdcIdUpdate = 0;
+
+void showAdcIdScreen()
+{
+  currentScreen = ADC_ID_TEST;
+  lastAdcIdUpdate = 0;
+
+  screen.fillScreen(COLOR_RGB565_BLACK);
+  screen.fillRect(0, 0, 480, 36, (uint16_t)0x2945);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  screen.setCursor(6, 14);
+  screen.print("ADC ID Test  ");
+  screen.setTextColor((uint16_t)0x07FF);
+  screen.print("Tap anywhere to exit");
+
+  // Column headers: CH0 - CH7
+  screen.setTextColor((uint16_t)0x7BEF);
+  for (int ch = 0; ch < 8; ch++)
+  {
+    screen.setCursor(70 + ch * 50, 44);
+    screen.print("CH");
+    screen.print(ch);
+  }
+
+  // Row labels: 0x10 - 0x17
+  for (int adc = 0; adc < 8; adc++)
+  {
+    screen.setCursor(4, 60 + adc * 28);
+    screen.print("0x1");
+    screen.print((char)('0' + adc));
+  }
+}
+
+void drawAdcIdLive()
+{
+  static int16_t adcid_last[8][8]; // [adc][ch]
+
+  bool anyChange = false;
+  for (int adc = 0; adc < 8; adc++)
+  {
+    uint8_t addr = 0x10 + adc;
+    for (int ch = 0; ch < 8; ch++)
+    {
+      // Read raw channel directly — no COL_TO_CHIP remapping
+      Wire1.beginTransmission(addr);
+      Wire1.write(0x08);
+      Wire1.write(0x10);
+      Wire1.write(0x00); // manual mode
+      Wire1.endTransmission();
+      Wire1.beginTransmission(addr);
+      Wire1.write(0x08);
+      Wire1.write(0x11);
+      Wire1.write(ch & 0x0F); // select ch
+      Wire1.endTransmission();
+      delayMicroseconds(50);
+
+      int16_t val = 0;
+      if (Wire1.requestFrom(addr, (uint8_t)2) == 2)
+      {
+        uint8_t msb = Wire1.read();
+        uint8_t lsb = Wire1.read();
+        uint16_t raw = ((uint16_t)msb << 4) | (lsb >> 4);
+        val = (int16_t)((int)raw - 2048);
+      }
+
+      if (val != adcid_last[adc][ch])
+      {
+        adcid_last[adc][ch] = val;
+        anyChange = true;
+
+        int px = 70 + ch * 50;
+        int py = 56 + adc * 28;
+
+        bool active = (abs((int)val) >= 300);
+        screen.fillRect(px, py, 46, 22,
+                        active ? (val > 0 ? COLOR_RGB565_GREEN : (uint16_t)0xFD20)
+                               : (uint16_t)0x2104);
+        screen.setTextSize(1);
+        screen.setTextColor(COLOR_RGB565_WHITE);
+        screen.setCursor(px + 2, py + 7);
+        if (active)
+        {
+          screen.print(val > 0 ? "+" : "-");
+          screen.print(abs((int)val));
+        }
+        else
+        {
+          screen.print("  --");
+        }
+      }
+    }
   }
 }
 
@@ -598,11 +707,30 @@ void loop()
     bool wifiNow = (WiFi.status() == WL_CONNECTED);
 
     // 1. Read physical board state and feed it to the FSM
-    readBoardFEN(gs_boardFENBuf);
+    // Pass orientation so ch7 always reads as the user's closest rank.
+    readBoardFEN(gs_boardFENBuf, cgm_isLocalPlayerWhite());
     cgm_setPhysicalBoardFEN(String(gs_boardFENBuf));
 
     // 2. Tick the game FSM
     cgm_tick();
+
+    // ----------------------------------------------------------------
+    // 2b. Update LEDs + display overlay for physical/logical mismatches
+    // ----------------------------------------------------------------
+    {
+      const String &committed = cgm_getCommittedFEN();
+      String physNow(gs_boardFENBuf);
+      if (committed.length() > 0 && physNow != gs_lastSyncPhysFEN)
+      {
+        gs_lastSyncPhysFEN = physNow;
+        lightBoardSync(committed.c_str(), physNow.c_str());
+      }
+      if (committed.length() > 0 && physNow != gs_lastOverlayPhysFEN)
+      {
+        gs_lastOverlayPhysFEN = physNow;
+        drawBoardSyncOverlay(committed, physNow, !cgm_isLocalPlayerWhite());
+      }
+    }
 
     // ----------------------------------------------------------------
     // 3. Game-over screen (highest priority — drawn once, stays up)
@@ -653,22 +781,23 @@ void loop()
       gs_liftShown = false;
       gs_lastTurnStatus = ""; // force status bar refresh after redraw
 
+      bool localWhite = cgm_isLocalPlayerWhite();
       // Show move highlight if we have a before/after pair
       if (incomingFEN.length() > 0)
       {
         // Remote move being applied — highlight on screen
-        drawGameScreenWithMove(wifiNow, committedFEN, incomingFEN);
+        drawGameScreenWithMove(wifiNow, committedFEN, incomingFEN, localWhite);
       }
       else if (pendingFEN.length() > 0 && committedFEN.length() > 0)
       {
         // Local move validated, awaiting confirmation
-        drawGameScreenWithMove(wifiNow, committedFEN, pendingFEN);
+        drawGameScreenWithMove(wifiNow, committedFEN, pendingFEN, localWhite);
       }
       else
       {
         bool fenValid = committedFEN.length() > 0;
         drawGameScreen(wifiNow, fenValid,
-                       fenValid ? committedFEN : String("Waiting for game..."));
+                       fenValid ? committedFEN : String("Waiting for game..."), localWhite);
       }
     }
 
@@ -700,7 +829,7 @@ void loop()
       gs_liftSquare[0] = 0;
       bool fenValid = committedFEN.length() > 0;
       drawGameScreen(wifiNow, fenValid,
-                     fenValid ? committedFEN : String("Waiting for game..."));
+                     fenValid ? committedFEN : String("Waiting for game..."), cgm_isLocalPlayerWhite());
     }
 
     // ----------------------------------------------------------------
@@ -717,7 +846,7 @@ void loop()
       gs_lastCheckState = false;
       bool fenValid = committedFEN.length() > 0;
       drawGameScreen(wifiNow, fenValid,
-                     fenValid ? committedFEN : String("Waiting for game..."));
+                     fenValid ? committedFEN : String("Waiting for game..."), cgm_isLocalPlayerWhite());
     }
 
     // ----------------------------------------------------------------
@@ -733,7 +862,7 @@ void loop()
       gs_lastConfirmState = false;
       bool fenValid = committedFEN.length() > 0;
       drawGameScreen(wifiNow, fenValid,
-                     fenValid ? committedFEN : String("Waiting for game..."));
+                     fenValid ? committedFEN : String("Waiting for game..."), cgm_isLocalPlayerWhite());
     }
   }
 
@@ -743,6 +872,15 @@ void loop()
     {
       lastBoardTestUpdate = now;
       drawBoardTestLive();
+    }
+  }
+
+  if (currentScreen == ADC_ID_TEST)
+  {
+    if (now - lastAdcIdUpdate >= 150)
+    {
+      lastAdcIdUpdate = now;
+      drawAdcIdLive();
     }
   }
 }

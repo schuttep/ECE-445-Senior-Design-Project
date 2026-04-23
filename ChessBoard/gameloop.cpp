@@ -523,6 +523,9 @@ struct ChessGameManager
     // illegal position while the player decides where to move next.
     String lastRejectedFEN;
 
+    // Server version counter for optimistic concurrency (tracks what the server holds).
+    int serverVersion;
+
     CGMGameResult result;
 };
 
@@ -767,10 +770,9 @@ void cgm_connectWiFi()
         cgm_uiMessage("WiFi not available");
 }
 
-bool cgm_sendFenToServer(const String &fen, bool localIsWhite)
+bool cgm_sendFenToServer(const String &fen, const String &move, int expectedVersion)
 {
-    ApiResult r = pushFENState(fen, localIsWhite,
-                               CGMConfig::GAME_ID, CGMConfig::BOARD_NUMBER);
+    ApiResult r = pushFENState(fen, move, expectedVersion);
     return r.ok;
 }
 
@@ -865,6 +867,7 @@ void cgm_resetManager()
     cgm.sendRetryCount = 0;
     cgm.sendStartMs = 0;
     cgm.lastRejectedFEN = "";
+    cgm.serverVersion = 0;
     cgm.result = CGM_RESULT_NONE;
 }
 
@@ -873,17 +876,22 @@ void cgm_startGameNow()
     cgm.state = CGM_GAME_INITIALIZATION;
 }
 
-// Start a fresh game as white (caller's board owns the white side).
+// Start a fresh game as white. Resets the server state first so whitePlayerId
+// is cleared and this board can claim white on its first move.
 void cgm_createGameNow()
 {
     cgm_resetManager();
     cgm.localIsWhite = true;
     cgm_joinedFEN = "";
+    displayStatusBar("Resetting game...", COLOR_RGB565_BLUE);
+    resetGame();
     cgm.state = CGM_GAME_INITIALIZATION;
 }
 
-// Join an existing game as black. Polls the server for the current board
-// position before initialising, so an in-progress game is inherited.
+// Join an existing game. Polls the server for the current board state and
+// derives this board's color by comparing its MAC to the stored whitePlayerId.
+// localIsWhite is set to false here as a safe default and overwritten in
+// cgm_handleJoinPolling() once the server responds.
 void cgm_joinGameNow()
 {
     cgm_resetManager();
@@ -994,10 +1002,12 @@ void cgm_handleJoinPolling()
     {
         cgm_joinedFEN = gs.fen;
         cgm_joinedWhiteToMove = gs.whiteToMove;
+        cgm.serverVersion = gs.version;
+        cgm.localIsWhite = gs.isWhite; // assigned by server based on MAC address
         String turnLabel = gs.whiteToMove ? "White to move" : "Black to move";
-        cgm_uiMessage("Game found", turnLabel);
-        Serial0.printf("[JOIN] Inherited FEN: %s  whiteToMove=%d\n",
-                       gs.fen.c_str(), (int)gs.whiteToMove);
+        cgm_uiMessage(cgm.localIsWhite ? "You are White" : "You are Black", turnLabel);
+        Serial0.printf("[JOIN] Inherited FEN: %s  whiteToMove=%d  isWhite=%d\n",
+                       gs.fen.c_str(), (int)gs.whiteToMove, (int)gs.isWhite);
     }
     else
     {
@@ -1170,7 +1180,21 @@ void cgm_handleSendState()
     if (cgm.sendStartMs == 0)
         cgm.sendStartMs = millis();
 
-    if (!cgm_sendFenToServer(cgm.pendingFEN, cgm.localIsWhite))
+    // Derive a UCI move string (e.g. "e2e4") from committed → pending FEN.
+    String moveStr = "none";
+    {
+        int fr, fc, tr, tc;
+        if (cgm_findMoveSquares(cgm.committedFEN, cgm.pendingFEN, fr, fc, tr, tc))
+        {
+            moveStr = String((char)('a' + fc));
+            moveStr += String((char)('8' - fr));
+            moveStr += String((char)('a' + tc));
+            moveStr += String((char)('8' - tr));
+        }
+    }
+
+    bool sent = cgm_sendFenToServer(cgm.pendingFEN, moveStr, cgm.serverVersion);
+    if (!sent)
     {
         cgm.sendRetryCount++;
         if (cgm.sendRetryCount < 5 && millis() - cgm.sendStartMs < 30000UL)
@@ -1180,6 +1204,10 @@ void cgm_handleSendState()
         }
         // Give up after 5 retries or 30 s — commit locally and continue
         cgm_uiMessage("Send failed", "Continuing offline");
+    }
+    else
+    {
+        cgm.serverVersion++; // server accepted the move, version advanced
     }
 
     cgm.sendRetryCount = 0;
@@ -1219,14 +1247,14 @@ void cgm_handleWaitForRemoteMove()
     }
     cgm.lastPollMs = now;
 
-    String latestFen;
-    if (!cgm_fetchLatestFenFromServer(latestFen))
+    GameStateResult gs = fetchGameState();
+    if (!gs.ok)
     {
         cgm_uiMessage("Polling failed");
         return;
     }
 
-    latestFen = cgm_boardOnlyFen(latestFen);
+    String latestFen = cgm_boardOnlyFen(gs.fen);
 
     if (latestFen.length() == 0)
     {
@@ -1238,6 +1266,7 @@ void cgm_handleWaitForRemoteMove()
         return;
     }
 
+    cgm.serverVersion = gs.version;
     cgm.remoteIncomingFEN = latestFen;
     cgm_setState(CGM_APPLY_REMOTE_MOVE);
 }

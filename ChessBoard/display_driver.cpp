@@ -55,7 +55,8 @@ static bool fenToBoard(const String &fen, char board[8][8])
 
 // Render a board-only FEN as a proper 8×8 chessboard with coloured squares.
 // Piece characters are drawn size-2 (12×16 px) centred in each cell.
-static void drawFENBoard(const String &fen, int boardX, int boardY, int cellSize)
+// flipped=true rotates the board 180° (black pieces at the bottom).
+static void drawFENBoard(const String &fen, int boardX, int boardY, int cellSize, bool flipped)
 {
   char board[8][8];
   for (int r = 0; r < 8; r++)
@@ -65,19 +66,28 @@ static void drawFENBoard(const String &fen, int boardX, int boardY, int cellSize
 
   for (int r = 0; r < 8; r++)
   {
+    // Rank label in the left margin (size-1: 6×8 px)
+    char rankLabel = flipped ? ('1' + r) : ('8' - r);
+    screen.setTextSize(1);
+    screen.setTextColor(COLOR_RGB565_BLACK);
+    screen.setCursor(1, boardY + r * cellSize + (cellSize - 8) / 2);
+    screen.print(rankLabel);
+
     for (int c = 0; c < 8; c++)
     {
+      int fenR = flipped ? (7 - r) : r;
+      int fenC = flipped ? (7 - c) : c;
       int px = boardX + c * cellSize;
       int py = boardY + r * cellSize;
       bool light = ((r + c) % 2 == 0);
       screen.fillRect(px, py, cellSize, cellSize, light ? SQ_LIGHT : SQ_DARK);
-      if (board[r][c] != '.')
+      if (board[fenR][fenC] != '.')
       {
         screen.setTextSize(2);
         screen.setTextColor(light ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE);
         // size-2 glyph: 12 × 16 px → centre in the cell
         screen.setCursor(px + (cellSize - 12) / 2, py + (cellSize - 16) / 2);
-        screen.print(board[r][c]);
+        screen.print(board[fenR][fenC]);
       }
     }
   }
@@ -120,8 +130,16 @@ void displayCenteredText(const char *text, int y, uint8_t size, uint16_t color)
 void displayButton(int x, int y, int w, int h, uint16_t color, const char *label)
 {
   screen.fillRect(x, y, w, h, color);
+  // Draw a border so white buttons are visible against a white background
+  screen.drawRect(x, y, w, h, COLOR_RGB565_BLACK);
   screen.setTextSize(2);
-  screen.setTextColor(COLOR_RGB565_WHITE);
+  // Use black text on light buttons, white text on dark buttons.
+  // Rough luminance check: R≥24, G≥48, B≥24 (in 5-6-5) = "light"
+  uint8_t r5 = (color >> 11) & 0x1F;
+  uint8_t g6 = (color >> 5) & 0x3F;
+  uint8_t b5 = color & 0x1F;
+  bool isLight = (r5 >= 24 && g6 >= 48 && b5 >= 24);
+  screen.setTextColor(isLight ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE);
   int textX = x + (w - (int)strlen(label) * 12) / 2;
   int textY = y + (h - 16) / 2;
   screen.setCursor(textX, textY);
@@ -146,7 +164,7 @@ void displayDivider(int y, uint16_t color)
 void initDisplay()
 {
   screen.begin();
-  screen.setRotation(1); // landscape: right side of PCB is now the bottom
+  screen.setRotation(3); // landscape: left side of PCB is now the bottom
   screen.setTextWrap(false);
 }
 
@@ -166,14 +184,15 @@ void drawMenuScreen(bool wifiConnected)
   displayCenteredText("Chess Board", 58, 2, COLOR_RGB565_BLACK);
 }
 
-void drawGameScreen(bool wifiConnected, bool fenOk, const String &data)
+void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool localIsWhite)
 {
   displayClear();
   displayHeader(wifiConnected);
 
   if (fenOk)
   {
-    drawFENBoard(data, BOARD_X, BOARD_Y, CELL_SIZE);
+    // Flip the board for black so the local player's pieces are always at the bottom.
+    drawFENBoard(data, BOARD_X, BOARD_Y, CELL_SIZE, !localIsWhite);
   }
   else
   {
@@ -186,9 +205,35 @@ void drawGameScreen(bool wifiConnected, bool fenOk, const String &data)
     screen.print(data);
   }
 
-  // Right info panel
+  // Right info panel outline
   screen.drawRect(RPANEL_X - 2, BOARD_Y, RPANEL_W + 2, 8 * CELL_SIZE,
                   (uint16_t)0xC618);
+
+  // ── Color indicators: top = opponent, bottom = local player ──────────────
+  const char *topLabel = localIsWhite ? "BLACK" : "WHITE";
+  const char *botLabel = localIsWhite ? "WHITE" : "BLACK";
+  uint16_t topBg = localIsWhite ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE;
+  uint16_t botBg = localIsWhite ? COLOR_RGB565_WHITE : COLOR_RGB565_BLACK;
+  uint16_t topFg = localIsWhite ? COLOR_RGB565_WHITE : COLOR_RGB565_BLACK;
+  uint16_t botFg = localIsWhite ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE;
+
+  // Top badge  (opponent)
+  screen.fillRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, topBg);
+  screen.drawRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, (uint16_t)0xC618);
+  screen.setTextSize(1);
+  screen.setTextColor(topFg);
+  screen.setCursor(RPANEL_X + 4, BOARD_Y + 7);
+  screen.print(topLabel);
+  screen.print(" (opp)");
+
+  // Bottom badge (local player)
+  int botY = BOARD_Y + 8 * CELL_SIZE - 22;
+  screen.fillRect(RPANEL_X, botY, RPANEL_W, 22, botBg);
+  screen.drawRect(RPANEL_X, botY, RPANEL_W, 22, (uint16_t)0xC618);
+  screen.setTextColor(botFg);
+  screen.setCursor(RPANEL_X + 4, botY + 7);
+  screen.print(botLabel);
+  screen.print(" (you)");
 
   displayStatusBar(
       fenOk ? "Game active" : "Waiting...",
@@ -203,9 +248,10 @@ void drawGameScreen(bool wifiConnected, bool fenOk, const String &data)
 // ---------------------------------------------------------------------------
 void drawGameScreenWithMove(bool wifiConnected,
                             const String &beforeFEN,
-                            const String &afterFEN)
+                            const String &afterFEN,
+                            bool localIsWhite)
 {
-  drawGameScreen(wifiConnected, afterFEN.length() > 0, afterFEN);
+  drawGameScreen(wifiConnected, afterFEN.length() > 0, afterFEN, localIsWhite);
 
   if (beforeFEN.length() == 0 || afterFEN.length() == 0)
     return;
@@ -218,6 +264,8 @@ void drawGameScreenWithMove(bool wifiConnected,
   fenToBoard(beforeFEN, before);
   fenToBoard(afterFEN, after);
 
+  // Flip board for black player so their pieces are at the bottom.
+  bool flipped = !localIsWhite;
   for (int r = 0; r < 8; r++)
   {
     for (int c = 0; c < 8; c++)
@@ -225,8 +273,10 @@ void drawGameScreenWithMove(bool wifiConnected,
       if (before[r][c] == after[r][c])
         continue;
 
-      int px = BOARD_X + c * CELL_SIZE;
-      int py = BOARD_Y + r * CELL_SIZE;
+      int dr = flipped ? (7 - r) : r;
+      int dc = flipped ? (7 - c) : c;
+      int px = BOARD_X + dc * CELL_SIZE;
+      int py = BOARD_Y + dr * CELL_SIZE;
 
       if (before[r][c] != '.' && after[r][c] == '.')
       {
@@ -241,6 +291,83 @@ void drawGameScreenWithMove(bool wifiConnected,
         screen.setTextColor(COLOR_RGB565_BLACK);
         screen.setCursor(px + (CELL_SIZE - 12) / 2, py + (CELL_SIZE - 16) / 2);
         screen.print(after[r][c]);
+      }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// drawBoardSyncOverlay
+// Overlays mismatch highlights on an already-drawn board without full redraw.
+//   Extra piece  (physical!='.', logical=='.')  → red tint over the square
+//   Missing piece (logical!='.', physical=='.') → piece letter in dim red
+// ---------------------------------------------------------------------------
+void drawBoardSyncOverlay(const String &logicalFEN, const String &physicalFEN, bool flipped)
+{
+  if (logicalFEN.length() == 0 || physicalFEN.length() == 0)
+    return;
+
+  char logical[8][8], physical[8][8];
+  for (int r = 0; r < 8; r++)
+    for (int c = 0; c < 8; c++)
+      logical[r][c] = physical[r][c] = '.';
+
+  fenToBoard(logicalFEN, logical);
+  fenToBoard(physicalFEN, physical);
+
+  // Convert logical piece to expected physical polarity
+  auto toPhys = [](char lc) -> char
+  {
+    if (lc == '.')
+      return '.';
+    return (lc >= 'A' && lc <= 'Z') ? 'P' : 'p';
+  };
+
+  static constexpr uint16_t EXTRA_COL = 0xF000;   // deep red tint
+  static constexpr uint16_t MISSING_COL = 0xF810; // dim red-orange for text
+
+  for (int r = 0; r < 8; r++)
+  {
+    for (int c = 0; c < 8; c++)
+    {
+      char lp = toPhys(logical[r][c]);
+      char pp = physical[r][c];
+
+      // Map logical row/col to display pixel
+      int dr = flipped ? (7 - r) : r;
+      int dc = flipped ? (7 - c) : c;
+      int px = BOARD_X + dc * CELL_SIZE;
+      int py = BOARD_Y + dr * CELL_SIZE;
+      bool light = ((dr + dc) % 2 == 0);
+
+      if (lp == pp)
+      {
+        // Square is now correct — erase any previous mismatch highlight by
+        // redrawing it in its normal colour with the normal piece (if any).
+        screen.fillRect(px, py, CELL_SIZE, CELL_SIZE, light ? SQ_LIGHT : SQ_DARK);
+        if (logical[r][c] != '.')
+        {
+          screen.setTextSize(2);
+          screen.setTextColor(light ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE);
+          screen.setCursor(px + (CELL_SIZE - 12) / 2, py + (CELL_SIZE - 16) / 2);
+          screen.print(logical[r][c]);
+        }
+        continue;
+      }
+
+      if (pp != '.' && lp == '.')
+      {
+        // Extra piece: fill square with a red tint
+        screen.fillRect(px, py, CELL_SIZE, CELL_SIZE, EXTRA_COL);
+      }
+      else if (pp == '.' && logical[r][c] != '.')
+      {
+        // Missing piece: redraw square background then print piece in dim red
+        screen.fillRect(px, py, CELL_SIZE, CELL_SIZE, light ? SQ_LIGHT : SQ_DARK);
+        screen.setTextSize(2);
+        screen.setTextColor(MISSING_COL);
+        screen.setCursor(px + (CELL_SIZE - 12) / 2, py + (CELL_SIZE - 16) / 2);
+        screen.print(logical[r][c]);
       }
     }
   }

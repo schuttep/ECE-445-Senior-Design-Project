@@ -6,15 +6,12 @@
 // Initialise I2C bus and configure all ADS7128 ADC chips.
 void initADCs();
 
-// Sample all 64 channels with no pieces on the board and store as baselines.
-void calibrateBaselines();
-
-// Read all 64 squares, drive the LED strip (RED = positive/N-pole,
-// WHITE = negative/S-pole, off = empty), and write a Modified FEN into
-// fenOut.  fenOut must be at least 72 bytes.
-// Modified FEN format: 'P' = N-pole present, 'p' = S-pole present,
-// digit = run of empty squares, '/' = rank separator.
-void readBoardFEN(char *fenOut);
+// Read all 64 squares and write a Modified FEN into fenOut (at least 72 bytes).
+// Always produces rank 8 first, file a..h per row, matching standard FEN.
+// localIsWhite: when false the physical board is read mirrored so that the
+// row of channels closest to the user (ch7) maps to rank 8 and file columns
+// are reversed, matching the black-side display orientation.
+void readBoardFEN(char *fenOut, bool localIsWhite = true);
 
 // Full ADC self-test result.
 struct ADCTestResult
@@ -31,7 +28,11 @@ ADCTestResult testADCs();
 // Returns raw 12-bit value, or 0xFFFF on error.
 uint16_t readRawChannel(uint8_t chip, uint8_t ch);
 
-// Returns the calibrated baseline for a given chip/channel.
+// Returns the fixed baseline (2048 = mid-scale of the 12-bit ADC).
 uint16_t getBaseline(uint8_t chip, uint8_t ch);
+
+// Physical column (0=file a .. 7=file h) to ADC chip index mapping.
+// Accounts for the non-sequential wiring of 0x14/0x15 and 0x16/0x17.
+extern const uint8_t ADC_COL_TO_CHIP[8];
 
 #endif

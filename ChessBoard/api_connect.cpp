@@ -32,6 +32,10 @@ rqXRfboQnoZsG4q5WTP468SQvvG5
 
 static constexpr const char *API_URL =
     "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/moves";
+static constexpr const char *GAME_STATE_BASE_URL =
+    "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1";
+static constexpr const char *RESET_URL =
+    "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/reset";
 
 ApiResult fetchLatestFEN()
 {
@@ -96,28 +100,32 @@ ApiResult fetchLatestFEN()
   return {false, "No fen field found"};
 }
 
-// Returns the latest board FEN and derives whose turn it is from the move
-// count: even number of moves recorded = white to move, odd = black to move.
+// Returns the current game state including which color this board is assigned.
+// Sends the board's MAC address as a query param so the server can return the
+// correct color by comparing it to the stored whitePlayerId.
+// Returns ok=false when version == 0 (no moves yet, game not started).
 GameStateResult fetchGameState()
 {
   if (WiFi.status() != WL_CONNECTED)
   {
     Serial0.println("WiFi not connected");
-    return {false, "", true};
+    return {false, "", true, 0, false};
   }
 
   WiFiClientSecure client;
   client.setCACert(AWS_ROOT_CA);
 
+  String url = String(GAME_STATE_BASE_URL) + "?boardId=" + WiFi.macAddress();
+
   HTTPClient http;
-  http.begin(client, API_URL);
+  http.begin(client, url);
 
   int httpCode = http.GET();
   if (httpCode <= 0)
   {
     Serial0.println("fetchGameState: request failed");
     http.end();
-    return {false, "", true};
+    return {false, "", true, 0, false};
   }
 
   String payload = http.getString();
@@ -125,22 +133,27 @@ GameStateResult fetchGameState()
 
   JsonDocument doc;
   if (deserializeJson(doc, payload))
-    return {false, "", true};
+    return {false, "", true, 0, false};
 
-  JsonArray moves = doc["moves"];
-  if (moves.isNull() || moves.size() == 0)
-    return {false, "", true}; // no moves yet
+  int version = doc["version"] | 0;
+  if (version == 0)
+    return {false, "", true, 0, false}; // no moves yet
 
-  size_t moveCount = moves.size();
-  const char *fen = moves[moveCount - 1]["fen"];
+  const char *fen = doc["fen"];
   if (!fen)
-    return {false, "", true};
+    return {false, "", true, 0, false};
 
-  // Even move count means white has had as many turns as black → white to move.
-  bool whiteToMove = (moveCount % 2 == 0);
-  Serial0.printf("fetchGameState: %u moves, fen=%s, whiteToMove=%d\n",
-                 (unsigned)moveCount, fen, (int)whiteToMove);
-  return {true, String(fen), whiteToMove};
+  // turn "A" = white to move (A starts), "B" = black to move
+  const char *turn = doc["turn"] | "A";
+  bool whiteToMove = (turn[0] == 'A');
+
+  // color field: "white" if boardId matches whitePlayerId, else "black"
+  const char *color = doc["color"] | "black";
+  bool isWhite = (strcmp(color, "white") == 0);
+
+  Serial0.printf("fetchGameState: fen=%s whiteToMove=%d version=%d isWhite=%d\n",
+                 fen, (int)whiteToMove, version, (int)isWhite);
+  return {true, String(fen), whiteToMove, version, isWhite};
 }
 
 ApiResult pushLatestFEN(const String &move, const String &fen)
@@ -211,10 +224,9 @@ ApiResult pushLatestFEN(const String &move, const String &fen)
 }
 
 // ---------------------------------------------------------------------------
-// pushFENState — richer POST used by the game FSM
+// pushFENState — POST a move to the server using the correct API contract
 // ---------------------------------------------------------------------------
-ApiResult pushFENState(const String &fen, bool isWhite,
-                       uint16_t gameId, uint8_t boardNum)
+ApiResult pushFENState(const String &fen, const String &move, int expectedVersion)
 {
   if (WiFi.status() != WL_CONNECTED)
     return {false, "WiFi not connected"};
@@ -227,11 +239,10 @@ ApiResult pushFENState(const String &fen, bool isWhite,
   http.addHeader("Content-Type", "application/json");
 
   JsonDocument doc;
-  doc["game_id"] = gameId;
-  doc["board_number"] = boardNum;
+  doc["move"] = move;
   doc["fen"] = fen;
-  doc["player_color"] = isWhite ? "white" : "black";
-  doc["mac_address"] = WiFi.macAddress();
+  doc["expectedVersion"] = expectedVersion;
+  doc["boardId"] = WiFi.macAddress();
 
   String body;
   serializeJson(doc, body);
@@ -250,6 +261,36 @@ ApiResult pushFENState(const String &fen, bool isWhite,
     Serial0.print("[API] pushFENState body: ");
     Serial0.println(response);
   }
+
+  if (code < 200 || code >= 300)
+    return {false, "HTTP " + String(code)};
+
+  return {true, response};
+}
+
+// ---------------------------------------------------------------------------
+// resetGame — POST /api/v1/games/1/reset
+// Resets board state to starting position and clears the registered white
+// player so this board can claim white on the first move of the new game.
+// ---------------------------------------------------------------------------
+ApiResult resetGame()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return {false, "WiFi not connected"};
+
+  WiFiClientSecure client;
+  client.setCACert(AWS_ROOT_CA);
+
+  HTTPClient http;
+  http.begin(client, RESET_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  int code = http.POST("{}");
+  String response = http.getString();
+  http.end();
+
+  Serial0.print("[API] resetGame code: ");
+  Serial0.println(code);
 
   if (code < 200 || code >= 300)
     return {false, "HTTP " + String(code)};

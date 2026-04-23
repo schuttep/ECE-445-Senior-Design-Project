@@ -13,7 +13,11 @@
 // strip is defined in LED_driver.cpp
 extern Adafruit_NeoPixel strip;
 
-static uint16_t baseline[NUM_ADCS][8];
+static const uint16_t baseline = 2048;
+
+// Physical column → ADC chip index. Left-to-right (file a..h) the chips are
+// wired in order: 7, 6, 5, 4, 0, 1, 2, 3.
+const uint8_t ADC_COL_TO_CHIP[8] = {7, 6, 5, 4, 0, 1, 2, 3};
 
 // ---- low-level helpers ------------------------------------------------
 
@@ -52,12 +56,10 @@ uint16_t readRawChannel(uint8_t chip, uint8_t ch)
     return readChannel(ADC_BASE_ADDR + chip, ch & 0x0F);
 }
 
-// Returns the calibrated baseline for a given chip/channel.
+// Returns the fixed baseline (2048 = mid-scale of the 12-bit ADC).
 uint16_t getBaseline(uint8_t chip, uint8_t ch)
 {
-    if (chip >= NUM_ADCS || ch >= 8)
-        return 0;
-    return baseline[chip][ch];
+    return baseline;
 }
 
 // Mirror the snake-pattern used in LED_driver.cpp so LEDs match squares.
@@ -85,49 +87,25 @@ void initADCs()
     }
 }
 
-void calibrateBaselines()
-{
-    Serial0.println("Calibrating baselines... remove all pieces");
-    delay(1000);
-
-    for (int adc = 0; adc < NUM_ADCS; adc++)
-    {
-        uint8_t addr = ADC_BASE_ADDR + adc;
-        for (int ch = 0; ch < 8; ch++)
-        {
-            uint32_t sum = 0;
-            for (int i = 0; i < 20; i++)
-            {
-                sum += readChannel(addr, ch);
-                delay(5);
-            }
-            baseline[adc][ch] = (uint16_t)(sum / 20);
-
-            Serial0.print("ADC");
-            Serial0.print(adc);
-            Serial0.print(" CH");
-            Serial0.print(ch);
-            Serial0.print(": ");
-            Serial0.println(baseline[adc][ch]);
-        }
-    }
-
-    Serial0.println("Calibration done");
-}
-
-void readBoardFEN(char *fenOut)
+void readBoardFEN(char *fenOut, bool localIsWhite)
 {
     int fenPos = 0;
 
-    for (int adc = 0; adc < NUM_ADCS; adc++) // adc = board row (rank 8 down to 1)
+    // White orientation: ch0 = rank 8 (far side), ch7 = rank 1 (user side).
+    // Black orientation: ch7 = rank 8 (user side), ch0 = rank 1 (far side).
+    // File columns are also mirrored for black so that col 0 in FEN (file a)
+    // always maps to the correct physical column from the user's perspective.
+    for (int rank = 0; rank < 8; rank++) // rank 0 in loop = rank 8 in FEN
     {
-        uint8_t addr = ADC_BASE_ADDR + adc;
+        int ch = localIsWhite ? rank : (7 - rank);
         int empty = 0;
 
-        for (int ch = 0; ch < 8; ch++) // ch = board column (file a..h)
+        for (int file = 0; file < NUM_ADCS; file++) // file 0 = FEN file a
         {
-            uint16_t raw = readChannel(addr, ch);
-            int diff = (int)raw - (int)baseline[adc][ch];
+            int col = localIsWhite ? file : (7 - file);
+            uint8_t addr = ADC_BASE_ADDR + ADC_COL_TO_CHIP[col];
+            uint16_t raw = readChannel(addr, (uint8_t)ch);
+            int diff = (int)raw - (int)baseline;
 
             if (diff >= THRESHOLD)
             {
@@ -154,13 +132,9 @@ void readBoardFEN(char *fenOut)
         }
 
         if (empty > 0)
-        {
             fenOut[fenPos++] = '0' + empty;
-        }
-        if (adc < NUM_ADCS - 1)
-        {
+        if (rank < 7)
             fenOut[fenPos++] = '/';
-        }
     }
 
     fenOut[fenPos] = '\0';

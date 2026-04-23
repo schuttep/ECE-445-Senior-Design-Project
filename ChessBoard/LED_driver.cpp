@@ -270,3 +270,83 @@ void lightWinAlert()
   strip.fill(strip.Color(0, 255, 0)); // green
   strip.show();
 }
+
+void lightBoardSync(const char *logicalFEN, const char *physicalFEN)
+{
+  if (!logicalFEN || !physicalFEN)
+    return;
+
+  // Convert logical FEN into expected physical polarity (P/p/.)
+  char expected[8][8];
+  char actual[8][8];
+  for (int r = 0; r < 8; r++)
+    for (int c = 0; c < 8; c++)
+      expected[r][c] = actual[r][c] = '.';
+
+  // Parse logical FEN
+  {
+    int r = 0, c = 0;
+    for (int i = 0; logicalFEN[i] && r < 8; i++)
+    {
+      char ch = logicalFEN[i];
+      if (ch == ' ')
+        break;
+      if (ch == '/')
+      {
+        r++;
+        c = 0;
+      }
+      else if (ch >= '1' && ch <= '8')
+      {
+        int n = ch - '0';
+        while (n-- && c < 8)
+          c++;
+      }
+      else if (c < 8)
+        expected[r][c++] = (ch >= 'A' && ch <= 'Z') ? 'P' : 'p';
+    }
+  }
+
+  // Parse physical FEN (P/p/. only)
+  {
+    int r = 0, c = 0;
+    for (int i = 0; physicalFEN[i] && r < 8; i++)
+    {
+      char ch = physicalFEN[i];
+      if (ch == ' ')
+        break;
+      if (ch == '/')
+      {
+        r++;
+        c = 0;
+      }
+      else if (ch >= '1' && ch <= '8')
+      {
+        int n = ch - '0';
+        while (n-- && c < 8)
+          c++;
+      }
+      else if (c < 8)
+        actual[r][c++] = ch;
+    }
+  }
+
+  strip.clear();
+  for (int r = 0; r < 8; r++)
+  {
+    for (int c = 0; c < 8; c++)
+    {
+      if (expected[r][c] == actual[r][c])
+        continue; // correct — leave off
+
+      int idx = boardToLedIndex(r, c);
+      if (expected[r][c] != '.' && actual[r][c] == '.')
+        strip.setPixelColor(idx, strip.Color(180, 0, 0)); // missing — red
+      else if (expected[r][c] == '.' && actual[r][c] != '.')
+        strip.setPixelColor(idx, strip.Color(180, 100, 0)); // extra — yellow
+      else
+        strip.setPixelColor(idx, strip.Color(255, 60, 0)); // wrong polarity — orange
+    }
+  }
+  strip.show();
+}

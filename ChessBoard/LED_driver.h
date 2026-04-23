@@ -15,4 +15,8 @@ void lightLossAlert();
 void lightMoveAlert(const char *fen, const char *fenBefore);
 void lightWinAlert();
 
+// Compare committed logical FEN against physical sensor FEN and light
+// mismatched squares: red = missing piece, yellow = extra piece, orange = wrong polarity.
+void lightBoardSync(const char *logicalFEN, const char *physicalFEN);
+
 #endif

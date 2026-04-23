@@ -42,7 +42,8 @@ void drawMenuScreen(bool wifiConnected);
 // Game screen showing the current board state.
 // fenOk=true  -> data is a valid FEN and will be rendered as a board grid.
 // fenOk=false -> data is an error message shown as plain text.
-void drawGameScreen(bool wifiConnected, bool fenOk, const String &data);
+// localIsWhite=false flips the board so black's pieces are at the bottom.
+void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool localIsWhite = true);
 
 // Game screen with move highlight:
 //   beforeFEN  — the board before the move (source square shown in yellow)
@@ -50,7 +51,8 @@ void drawGameScreen(bool wifiConnected, bool fenOk, const String &data);
 // Pass empty strings for either to skip highlighting.
 void drawGameScreenWithMove(bool wifiConnected,
                             const String &beforeFEN,
-                            const String &afterFEN);
+                            const String &afterFEN,
+                            bool localIsWhite = true);
 
 // Overlay a yellow "in check!" banner over the current game screen.
 void drawCheckAlert(bool whiteInCheck);
@@ -61,6 +63,13 @@ void drawGameOverScreen(const char *resultLine);
 // Small overlay shown as soon as a piece leaves a square
 // (piece has been picked up and is in the air).
 void drawPiecePickedUp(const char *squareName);
+
+// Overlay mismatch highlights on the already-drawn board:
+//   - Extra piece (physical present, logical empty) → red square tint
+//   - Missing piece (logical present, physical empty) → piece drawn in dim red
+// Pass the board-only logical FEN and the raw physical P/p/. FEN.
+// flipped must match the board orientation used when the screen was drawn.
+void drawBoardSyncOverlay(const String &logicalFEN, const String &physicalFEN, bool flipped);
 
 // Full-screen error display: red banner, bold title, wrapped detail text.
 void drawErrorScreen(const char *title, const char *detail);
