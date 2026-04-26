@@ -36,6 +36,12 @@ static constexpr const char *GAME_STATE_BASE_URL =
     "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1";
 static constexpr const char *RESET_URL =
     "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/reset";
+static constexpr const char *MESSAGES_URL =
+    "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/messages";
+static constexpr const char *HEARTBEAT_URL =
+    "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/heartbeat";
+static constexpr const char *HINT_URL =
+    "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/hint";
 
 ApiResult fetchLatestFEN()
 {
@@ -125,7 +131,7 @@ GameStateResult fetchGameState()
   {
     Serial0.println("fetchGameState: request failed");
     http.end();
-    return {false, "", true, 0, false};
+    return {false, "", true, 0, false, "none", 0, 0, false, false};
   }
 
   String payload = http.getString();
@@ -133,15 +139,15 @@ GameStateResult fetchGameState()
 
   JsonDocument doc;
   if (deserializeJson(doc, payload))
-    return {false, "", true, 0, false};
+    return {false, "", true, 0, false, "none", 0, 0, false, false};
 
   int version = doc["version"] | 0;
   if (version == 0)
-    return {false, "", true, 0, false}; // no moves yet
+    return {false, "", true, 0, false, "none", 0, 0, false, false}; // no moves yet
 
   const char *fen = doc["fen"];
   if (!fen)
-    return {false, "", true, 0, false};
+    return {false, "", true, 0, false, "none", 0, 0, false, false};
 
   // turn "A" = white to move (A starts), "B" = black to move
   const char *turn = doc["turn"] | "A";
@@ -151,9 +157,18 @@ GameStateResult fetchGameState()
   const char *color = doc["color"] | "black";
   bool isWhite = (strcmp(color, "white") == 0);
 
-  Serial0.printf("fetchGameState: fen=%s whiteToMove=%d version=%d isWhite=%d\n",
-                 fen, (int)whiteToMove, version, (int)isWhite);
-  return {true, String(fen), whiteToMove, version, isWhite};
+  // Timer fields
+  const char *timerMode = doc["timerMode"] | "none";
+  int32_t whiteTimeMs = (int32_t)(doc["whiteTimeMs"] | 0);
+  int32_t blackTimeMs = (int32_t)(doc["blackTimeMs"] | 0);
+  const char *clockFor = doc["clockRunningFor"] | "";
+  bool clockRunning = (clockFor[0] != '\0');
+  bool clockForWhite = (strcmp(clockFor, "white") == 0);
+
+  Serial0.printf("fetchGameState: fen=%s whiteToMove=%d version=%d isWhite=%d timer=%s\n",
+                 fen, (int)whiteToMove, version, (int)isWhite, timerMode);
+  return {true, String(fen), whiteToMove, version, isWhite,
+          String(timerMode), whiteTimeMs, blackTimeMs, clockRunning, clockForWhite};
 }
 
 ApiResult pushLatestFEN(const String &move, const String &fen)
@@ -270,10 +285,11 @@ ApiResult pushFENState(const String &fen, const String &move, int expectedVersio
 
 // ---------------------------------------------------------------------------
 // resetGame — POST /api/v1/games/1/reset
-// Resets board state to starting position and clears the registered white
-// player so this board can claim white on the first move of the new game.
+// Resets board state to starting position and initialises timer mode.
+// boardId (MAC address) is registered as white immediately so the timer can
+// start as soon as the second board sends its first heartbeat.
 // ---------------------------------------------------------------------------
-ApiResult resetGame()
+ApiResult resetGame(const char *timerMode, const String &boardId, const char *gameMode)
 {
   if (WiFi.status() != WL_CONNECTED)
     return {false, "WiFi not connected"};
@@ -285,15 +301,226 @@ ApiResult resetGame()
   http.begin(client, RESET_URL);
   http.addHeader("Content-Type", "application/json");
 
-  int code = http.POST("{}");
+  JsonDocument doc;
+  doc["timerMode"] = timerMode;
+  doc["gameMode"] = gameMode;
+  if (boardId.length() > 0)
+    doc["boardId"] = boardId;
+
+  String body;
+  serializeJson(doc, body);
+
+  int code = http.POST(body);
   String response = http.getString();
   http.end();
 
-  Serial0.print("[API] resetGame code: ");
+  Serial0.printf("[API] resetGame code: %d timerMode: %s gameMode: %s\n", code, timerMode, gameMode);
+
+  if (code < 200 || code >= 300)
+    return {false, "HTTP " + String(code)};
+
+  return {true, response};
+}
+
+// ---------------------------------------------------------------------------
+// sendHeartbeat — POST /api/v1/games/1/heartbeat
+// Tells the server this board is still connected. The server uses this to
+// decide when to start / pause the game clock.
+// ---------------------------------------------------------------------------
+ApiResult sendHeartbeat()
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return {false, "WiFi not connected"};
+
+  WiFiClientSecure client;
+  client.setCACert(AWS_ROOT_CA);
+
+  HTTPClient http;
+  http.begin(client, HEARTBEAT_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  JsonDocument doc;
+  doc["boardId"] = WiFi.macAddress();
+
+  String body;
+  serializeJson(doc, body);
+
+  int code = http.POST(body);
+  http.end();
+
+  return {code >= 200 && code < 300, ""};
+}
+
+// ---------------------------------------------------------------------------
+// sendMessage — POST a chat message to the server
+// ---------------------------------------------------------------------------
+ApiResult sendMessage(const String &text)
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return {false, "WiFi not connected"};
+
+  WiFiClientSecure client;
+  client.setCACert(AWS_ROOT_CA);
+
+  HTTPClient http;
+  http.begin(client, MESSAGES_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  JsonDocument doc;
+  doc["boardId"] = WiFi.macAddress();
+  doc["text"] = text;
+
+  String body;
+  serializeJson(doc, body);
+
+  Serial0.print("[API] sendMessage POST: ");
+  Serial0.println(body);
+
+  int code = http.POST(body);
+  String response = http.getString();
+  http.end();
+
+  Serial0.print("[API] sendMessage code: ");
   Serial0.println(code);
 
   if (code < 200 || code >= 300)
     return {false, "HTTP " + String(code)};
 
   return {true, response};
+}
+
+// ---------------------------------------------------------------------------
+// fetchMessages — GET the latest chat messages from the server
+// ---------------------------------------------------------------------------
+FetchMessagesResult fetchMessages()
+{
+  FetchMessagesResult out;
+  out.ok = false;
+  out.count = 0;
+
+  if (WiFi.status() != WL_CONNECTED)
+    return out;
+
+  WiFiClientSecure client;
+  client.setCACert(AWS_ROOT_CA);
+
+  HTTPClient http;
+  http.begin(client, MESSAGES_URL);
+
+  int code = http.GET();
+  if (code < 200 || code >= 300)
+  {
+    http.end();
+    Serial0.print("[API] fetchMessages failed, code: ");
+    Serial0.println(code);
+    return out;
+  }
+
+  String payload = http.getString();
+  http.end();
+
+  JsonDocument jdoc;
+  if (deserializeJson(jdoc, payload))
+  {
+    Serial0.println("[API] fetchMessages: JSON parse failed");
+    return out;
+  }
+
+  JsonArray arr = jdoc["messages"];
+  if (arr.isNull())
+    return out;
+
+  int total = (int)arr.size();
+  int start = total > API_MSG_MAX_COUNT ? total - API_MSG_MAX_COUNT : 0;
+  int count = 0;
+
+  for (int i = start; i < total && count < API_MSG_MAX_COUNT; i++)
+  {
+    const char *bid = arr[i]["boardId"] | "";
+    const char *txt = arr[i]["text"] | "";
+    strncpy(out.messages[count].boardId, bid, sizeof(out.messages[count].boardId) - 1);
+    out.messages[count].boardId[sizeof(out.messages[count].boardId) - 1] = '\0';
+    strncpy(out.messages[count].text, txt, API_MSG_TEXT_LEN);
+    out.messages[count].text[API_MSG_TEXT_LEN] = '\0';
+    count++;
+  }
+
+  out.ok = true;
+  out.count = count;
+  Serial0.printf("[API] fetchMessages: got %d messages\n", count);
+  return out;
+}
+
+// ---------------------------------------------------------------------------
+// fetchBestMove — POST /api/v1/games/1/hint
+// Calls Stockfish on the server and returns the best move (depth 5).
+// The server posts a chat message notifying the opponent and tracks the hint
+// count; returns HTTP 429 when the 3-hint limit is reached.
+// ---------------------------------------------------------------------------
+HintResult fetchBestMove(const String &currentFen)
+{
+  HintResult out;
+  out.ok = false;
+
+  if (WiFi.status() != WL_CONNECTED)
+  {
+    out.error = "WiFi not connected";
+    return out;
+  }
+
+  WiFiClientSecure client;
+  client.setCACert(AWS_ROOT_CA);
+
+  HTTPClient http;
+  http.begin(client, HINT_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  JsonDocument doc;
+  doc["boardId"] = WiFi.macAddress();
+  doc["fen"] = currentFen;
+
+  String body;
+  serializeJson(doc, body);
+
+  Serial0.print("[API] fetchBestMove POST: ");
+  Serial0.println(body);
+
+  int code = http.POST(body);
+  String response = http.getString();
+  http.end();
+
+  Serial0.printf("[API] fetchBestMove code: %d\n", code);
+
+  if (code == 429)
+  {
+    out.error = "HINT_LIMIT_REACHED";
+    return out;
+  }
+
+  if (code < 200 || code >= 300)
+  {
+    out.error = "HTTP " + String(code);
+    return out;
+  }
+
+  JsonDocument res;
+  if (deserializeJson(res, response))
+  {
+    out.error = "JSON parse failed";
+    return out;
+  }
+
+  const char *move = res["move"] | "";
+  const char *afterFen = res["afterFen"] | "";
+
+  if (move[0] == '\0')
+  {
+    out.error = "No move in response";
+    return out;
+  }
+
+  out.ok = true;
+  out.move = String(move);
+  out.afterFen = String(afterFen);
+  return out;
 }

@@ -7,6 +7,7 @@
 #include "api_connect.h"
 #include "display_driver.h"
 #include "wifi_manager.h"
+#include "gameloop.h"
 
 // ============================================================
 // ChessGameFSM.ino
@@ -25,6 +26,7 @@ namespace CGMConfig
     const uint32_t LOCAL_STABLE_TIME_MS = 600;
     const uint32_t WIFI_RETRY_INTERVAL_MS = 5000;
     const uint32_t STATUS_PRINT_INTERVAL_MS = 1500;
+    const uint32_t HEARTBEAT_INTERVAL_MS = 3000; // send heartbeat every 3 s
 
     const uint16_t GAME_ID = 1;
     const uint8_t BOARD_NUMBER = 1;
@@ -536,9 +538,22 @@ struct ChessGameManager
     int serverVersion;
 
     CGMGameResult result;
+
+    // ── Timer state ────────────────────────────────────────────────────────
+    TimerMode timerMode;     // selected before game creation
+    int32_t timerWhiteMs;    // white remaining ms (as of timerFetchMs)
+    int32_t timerBlackMs;    // black remaining ms (as of timerFetchMs)
+    bool timerClockRunning;  // is a clock currently ticking?
+    bool timerClockForWhite; // which side's clock (only valid when running)
+    uint32_t timerFetchMs;   // local millis() when timer state was last synced
 };
 
 ChessGameManager cgm;
+
+// Timer mode selected via the UI before cgm_createGameNow() is called.
+static TimerMode cgm_pendingTimerMode = TIMER_NONE;
+// Timestamp of the last heartbeat sent (local millis).
+static uint32_t cgm_lastHeartbeatMs = 0;
 
 bool cgm_isChoosingPromotion()
 {
@@ -775,6 +790,27 @@ void cgm_ledShowMoveSquares(const String &beforeFEN, const String &afterFEN)
 // Networking helpers  (delegate to api_connect / wifi_manager)
 // ============================================================
 
+// Apply timer state from a fetchGameState() response into cgm.
+// Only updates the timer fields; all other FSM state is untouched.
+static void cgm_applyTimerState(const GameStateResult &gs)
+{
+    if (gs.timerMode == "none" || gs.timerMode.length() == 0)
+        return; // no timer active
+
+    cgm.timerWhiteMs = gs.whiteTimeMs;
+    cgm.timerBlackMs = gs.blackTimeMs;
+    cgm.timerClockRunning = gs.clockRunning;
+    cgm.timerClockForWhite = gs.clockForWhite;
+    cgm.timerFetchMs = millis();
+    // Keep timerMode in sync with what the server says
+    if (gs.timerMode == "rapid")
+        cgm.timerMode = TIMER_RAPID;
+    else if (gs.timerMode == "bullet")
+        cgm.timerMode = TIMER_BULLET;
+    else
+        cgm.timerMode = TIMER_NONE;
+}
+
 void cgm_connectWiFi()
 {
     if (cgm_wifiConnected())
@@ -863,6 +899,11 @@ static CGMState cgm_nextStateAfterSync = CGM_LOCAL_TURN_WAIT_FOR_BOARD;
 // Last sync message — used to avoid redrawing the status bar every tick.
 static String cgm_lastSyncMsg = "";
 
+void cgm_setTimerMode(TimerMode mode)
+{
+    cgm_pendingTimerMode = mode;
+}
+
 void cgm_resetManager()
 {
     cgm.state = CGM_WAIT_FOR_GAME_START;
@@ -886,6 +927,14 @@ void cgm_resetManager()
     cgm.lastRejectedFEN = "";
     cgm.serverVersion = 0;
     cgm.result = CGM_RESULT_NONE;
+    // Timer fields
+    cgm.timerMode = TIMER_NONE;
+    cgm.timerWhiteMs = 0;
+    cgm.timerBlackMs = 0;
+    cgm.timerClockRunning = false;
+    cgm.timerClockForWhite = false;
+    cgm.timerFetchMs = 0;
+    cgm_lastHeartbeatMs = 0;
 }
 
 void cgm_startGameNow()
@@ -941,13 +990,18 @@ void cgm_loadEdgeCaseFEN(const String &fen, bool whiteToMove, const bool *castli
 
 // Start a fresh game as white. Resets the server state first so whitePlayerId
 // is cleared and this board can claim white on its first move.
-void cgm_createGameNow()
+void cgm_createGameNow(bool aiMode)
 {
     cgm_resetManager();
     cgm.localIsWhite = true;
+    cgm.timerMode = cgm_pendingTimerMode; // inherit from cgm_setTimerMode()
+    // Pre-populate the timer displays with the initial time budget so the
+    // player sees the correct value before the first server poll.
+    cgm.timerWhiteMs = (int32_t)cgm.timerMode;
+    cgm.timerBlackMs = (int32_t)cgm.timerMode;
     cgm_joinedFEN = "";
     displayStatusBar("Resetting game...", COLOR_RGB565_BLUE);
-    resetGame();
+    resetGame(timerModeStr(cgm.timerMode), WiFi.macAddress(), aiMode ? "ai" : "pvp");
     cgm.state = CGM_GAME_INITIALIZATION;
 }
 
@@ -1067,6 +1121,7 @@ void cgm_handleJoinPolling()
         cgm_joinedWhiteToMove = gs.whiteToMove;
         cgm.serverVersion = gs.version;
         cgm.localIsWhite = gs.isWhite; // assigned by server based on MAC address
+        cgm_applyTimerState(gs);
         String turnLabel = gs.whiteToMove ? "White to move" : "Black to move";
         cgm_uiMessage(cgm.localIsWhite ? "You are White" : "You are Black", turnLabel);
         Serial0.printf("[JOIN] Inherited FEN: %s  whiteToMove=%d  isWhite=%d\n",
@@ -1226,9 +1281,38 @@ void cgm_handleLocalTurnPromotion()
 
 void cgm_handleLocalTurnValidate()
 {
+    // The physical sensor only knows piece polarity, not piece type.
+    // cgm_physicalToLogicalFEN therefore leaves a pawn on the back rank in
+    // pendingFEN after a promotion move.  validateMoveAndReturnFEN requires the
+    // promoted piece to already be in afterFEN, so patch it here before validating.
+    String afterFEN = cgm.pendingFEN;
+    {
+        char board[8][8];
+        if (parseFENBoard(afterFEN, board))
+        {
+            char normalizedPromo = normalizePromotionPiece(cgm_requestedPromotion, cgm.whiteToMove);
+            bool patched = false;
+            for (int c = 0; c < 8 && !patched; c++)
+            {
+                if (cgm.whiteToMove && board[0][c] == 'P')
+                {
+                    board[0][c] = normalizedPromo;
+                    patched = true;
+                }
+                else if (!cgm.whiteToMove && board[7][c] == 'p')
+                {
+                    board[7][c] = normalizedPromo;
+                    patched = true;
+                }
+            }
+            if (patched)
+                afterFEN = cgm_boardToFEN(board);
+        }
+    }
+
     String validated = validateMoveAndReturnFEN(
         cgm.committedFEN,
-        cgm.pendingFEN,
+        afterFEN,
         cgm.whiteToMove,
         cgm.castling,
         cgm_requestedPromotion,
@@ -1237,9 +1321,11 @@ void cgm_handleLocalTurnValidate()
     if (validated == "Invalid Move")
     {
         cgm_uiMessage("Illegal move", "Try a different square");
-        // Cache the rejected position so we don't loop on the same board state
-        cgm.lastRejectedFEN = cgm.pendingFEN;
+        // Cache the rejected position so we don't loop on the same board state.
+        // lastRejectedFEN must be set AFTER cgm_beginWaitingForStableBoard(),
+        // because that helper clears lastRejectedFEN.
         cgm_beginWaitingForStableBoard();
+        cgm.lastRejectedFEN = cgm.pendingFEN;
         cgm.pendingFEN = "";
         cgm_setState(CGM_LOCAL_TURN_WAIT_FOR_BOARD);
         return;
@@ -1355,6 +1441,8 @@ void cgm_handleWaitForRemoteMove()
         return;
     }
 
+    cgm_applyTimerState(gs);
+
     String latestFen = cgm_boardOnlyFen(gs.fen);
 
     if (latestFen.length() == 0)
@@ -1452,6 +1540,17 @@ void cgm_tick()
         cgm.lastWifiRetryMs = now;
         cgm_connectWiFi();
     }
+
+    // ── Heartbeat ────────────────────────────────────────────────────────────
+    // Send a keepalive so the server knows this board is still connected.
+    // The server uses heartbeats to start / pause / resume the game clock.
+    if (cgm.gameActive && cgm_wifiConnected() &&
+        now - cgm_lastHeartbeatMs >= CGMConfig::HEARTBEAT_INTERVAL_MS)
+    {
+        cgm_lastHeartbeatMs = now;
+        sendHeartbeat();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     if (now - cgm.lastStatusPrintMs >= CGMConfig::STATUS_PRINT_INTERVAL_MS)
     {
@@ -1680,6 +1779,54 @@ bool cgm_getPieceLiftSquare(char squareName[3])
         return true;
     }
     return false;
+}
+
+// ============================================================
+// Timer accessor helpers used by ChessBoard.ino
+// ============================================================
+
+TimerMode cgm_getTimerMode()
+{
+    return cgm.timerMode;
+}
+
+// Returns white's current remaining time in ms, interpolating locally
+// between server syncs so the display counts down smoothly.
+int32_t cgm_getWhiteTimeMs()
+{
+    if (cgm.timerMode == TIMER_NONE)
+        return 0;
+    int32_t ms = cgm.timerWhiteMs;
+    if (cgm.timerClockRunning && cgm.timerClockForWhite && cgm.timerFetchMs > 0)
+    {
+        uint32_t elapsed = millis() - cgm.timerFetchMs;
+        ms -= (int32_t)elapsed;
+    }
+    return ms < 0 ? 0 : ms;
+}
+
+// Returns black's current remaining time in ms.
+int32_t cgm_getBlackTimeMs()
+{
+    if (cgm.timerMode == TIMER_NONE)
+        return 0;
+    int32_t ms = cgm.timerBlackMs;
+    if (cgm.timerClockRunning && !cgm.timerClockForWhite && cgm.timerFetchMs > 0)
+    {
+        uint32_t elapsed = millis() - cgm.timerFetchMs;
+        ms -= (int32_t)elapsed;
+    }
+    return ms < 0 ? 0 : ms;
+}
+
+bool cgm_isTimerRunning()
+{
+    return cgm.timerClockRunning;
+}
+
+bool cgm_isTimerForWhite()
+{
+    return cgm.timerClockForWhite;
 }
 
 // ============================================================

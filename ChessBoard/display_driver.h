@@ -12,7 +12,8 @@
 void displayClear();
 
 // Draw the standard top header bar (title + WiFi status + divider line).
-void displayHeader(bool wifiConnected);
+// showBack=true reserves the top-left hit zone for a visible back button.
+void displayHeader(bool wifiConnected, bool showBack = false);
 
 // Print text horizontally centered at the given y pixel position.
 void displayCenteredText(const char *text, int y, uint8_t size, uint16_t color);
@@ -39,11 +40,29 @@ void drawConnectingScreen(const char *ssid);
 // Main menu background (header + title). Add buttons with displayButton().
 void drawMenuScreen(bool wifiConnected);
 
+// Timer mode selection screen shown after "Create Game" is tapped.
+// Three buttons let the player choose: Unlimited, Rapid (10 min), Bullet (5 min).
+void drawTimerModeScreen(bool wifiConnected);
+
+// WiFi settings button — top-right corner of the header (all screens).
+#define WIFI_SETTINGS_BTN_X 392
+#define WIFI_SETTINGS_BTN_Y 5
+#define WIFI_SETTINGS_BTN_W 80
+#define WIFI_SETTINGS_BTN_H 26
+
+// Hit-test regions for the timer mode selection buttons (landscape 480×320).
+#define TIMER_BTN_X 50
+#define TIMER_BTN_W 380
+#define TIMER_BTN_H 55
+#define TIMER_BTN_UNLIM_Y 80
+#define TIMER_BTN_RAPID_Y 150
+#define TIMER_BTN_BULLET_Y 220
+
 // Game screen showing the current board state.
 // fenOk=true  -> data is a valid FEN and will be rendered as a board grid.
 // fenOk=false -> data is an error message shown as plain text.
 // localIsWhite=false flips the board so black's pieces are at the bottom.
-void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool localIsWhite = true);
+void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool localIsWhite = true, bool aiGame = false);
 
 // Game screen with move highlight:
 //   beforeFEN  — the board before the move (source square shown in yellow)
@@ -52,10 +71,15 @@ void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool loc
 void drawGameScreenWithMove(bool wifiConnected,
                             const String &beforeFEN,
                             const String &afterFEN,
-                            bool localIsWhite = true);
+                            bool localIsWhite = true,
+                            bool aiGame = false);
 
 // Overlay a yellow "in check!" banner over the current game screen.
 void drawCheckAlert(bool whiteInCheck);
+
+// Remove the check-alert banner and restore the opponent player label.
+// No board pixels are redrawn — only the 22px right-panel strip is touched.
+void clearCheckAlert();
 
 // Full-screen game-over panel (checkmate or stalemate).
 void drawGameOverScreen(const char *resultLine);
@@ -63,6 +87,14 @@ void drawGameOverScreen(const char *resultLine);
 // Small overlay shown as soon as a piece leaves a square
 // (piece has been picked up and is in the air).
 void drawPiecePickedUp(const char *squareName);
+
+// Remove the piece-lift banner (restores the right-panel strip to white).
+// No board pixels are redrawn.
+void clearPieceLiftOverlay();
+
+// Remove the confirm/cancel buttons overlay from the right panel.
+// No board pixels are redrawn.
+void clearConfirmOverlay();
 
 // Overlay mismatch highlights on the already-drawn board:
 //   - Extra piece (physical present, logical empty) → red square tint
@@ -75,6 +107,37 @@ void drawBoardSyncOverlay(const String &logicalFEN, const String &physicalFEN, b
 // isWhite: true = local player is white (shows uppercase piece letters).
 void drawPromotionPicker(bool isWhite);
 
+// Draw the game clock in both player-label strips of the right info panel.
+// Call this after drawGameScreen — it only paints the rightmost 60 px of each
+// label strip so it does not disturb other overlays.
+// whiteMs / blackMs  — remaining milliseconds for each side (at time of call).
+// clockRunning       — true when a clock is actively ticking.
+// clockForWhite      — which side's clock is running (only used if clockRunning).
+// localIsWhite       — used to decide which strip is "mine" vs "opponent".
+void drawTimerDisplay(int32_t whiteMs, int32_t blackMs,
+                      bool clockRunning, bool clockForWhite,
+                      bool localIsWhite);
+
+// Chat message entry used by the game-screen message panel.
+// isMine = true when this board sent the message (right-tinted bubble).
+#define CHAT_MAX_DISPLAY 3
+struct ChatDisplayMsg
+{
+    char text[97];
+    bool isMine;
+};
+
+// Live chat panel in the game screen's right panel.
+// Shows the last CHAT_MAX_DISPLAY messages and the current draft.
+// Tap anywhere in the card bounds to open the composer.
+void drawGameMessagePanel(const ChatDisplayMsg *msgs, int count, const char *draft);
+
+// Full-screen message composer overlay for the game screen.
+void drawGameMessageComposer(const char *message, bool shifted, bool symbols);
+
+// Redraws only the draft text field inside the composer (cheap partial update).
+void drawGameMessageComposerField(const char *message);
+
 // Touch hit-test regions for the promotion picker (landscape 480×320).
 // Button order: 0=Queen, 1=Rook, 2=Bishop, 3=Knight.
 #define PROMO_BTN_X 276 // RPANEL_X + 4
@@ -82,6 +145,23 @@ void drawPromotionPicker(bool isWhite);
 #define PROMO_BTN_H 52
 #define PROMO_BTN_Y0 68 // top of first button (BOARD_Y + 28)
 #define PROMO_BTN_GAP 6 // vertical gap between buttons
+
+#define GAME_MSG_CARD_X 276
+#define GAME_MSG_CARD_Y 94
+#define GAME_MSG_CARD_W 192
+#define GAME_MSG_CARD_H 100
+
+// Hint button — sits in the 32 px gap between the opponent label (y=40..62)
+// and the chat card (y=94) in the right info panel.
+#define HINT_BTN_X 272
+#define HINT_BTN_Y 63
+#define HINT_BTN_W 196
+#define HINT_BTN_H 27
+
+// Draw (or refresh) the hint button with the remaining hint count.
+// hintsLeft > 0 → blue button; 0 → dark-grey (exhausted).
+// Call this after drawGameScreen() and after any operation that repaints chrome.
+void drawHintButton(int hintsLeft);
 
 // Edge-case test scenario menu (full screen).
 // Labels is an array of 'count' C-strings. Selected index is highlighted.
@@ -95,6 +175,11 @@ void drawEdgeCaseStatus(const char *scenarioName, const char *instruction, int8_
 
 // Full-screen error display: red banner, bold title, wrapped detail text.
 void drawErrorScreen(const char *title, const char *detail);
+
+// Force the board-cell cache to be treated as invalid so the next
+// drawGameScreen / drawFENBoard call repaints all 64 squares.
+// Call this before any drawGameScreen that must clear a board overlay.
+void invalidateBoardCache();
 
 // Black terminal-style debug screen. Pass an array of count C-strings.
 void drawDebugScreen(const char *const lines[], uint8_t count);

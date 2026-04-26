@@ -4,6 +4,30 @@
 #include <Arduino.h>
 
 // ---------------------------------------------------------------------------
+// Timer mode — select before calling cgm_createGameNow().
+// ---------------------------------------------------------------------------
+enum TimerMode
+{
+    TIMER_NONE = 0,
+    TIMER_RAPID = 600000,  // 10 min per side in ms
+    TIMER_BULLET = 300000, //  5 min per side in ms
+};
+
+// Convert a TimerMode value to the string expected by the server API.
+inline const char *timerModeStr(TimerMode m)
+{
+    switch (m)
+    {
+    case TIMER_RAPID:
+        return "rapid";
+    case TIMER_BULLET:
+        return "bullet";
+    default:
+        return "none";
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Initialisation — call once from setup() after hardware and WiFi are ready.
 // ---------------------------------------------------------------------------
 void cgm_setup();
@@ -22,15 +46,17 @@ void cgm_setPhysicalBoardFEN(const String &fen);
 // ---------------------------------------------------------------------------
 // Game control — map these to UI events (touch buttons, menu items).
 // ---------------------------------------------------------------------------
-void cgm_startGameNow();                   // Begin a fresh game as white (legacy / new-game restart)
-void cgm_createGameNow();                  // Begin a fresh game as white (Create Game button)
-void cgm_joinGameNow();                    // Join an in-progress game as black (Join Game button)
-void cgm_resetManager();                   // Reset FSM back to idle (call before startGameNow)
-void cgm_requestNewGame();                 // Request restart from the GAME_END state
-void cgm_confirmPendingMove();             // Confirm the move currently awaiting approval
-void cgm_cancelPendingMove();              // Cancel/undo the move awaiting approval
-void cgm_setPromotionPiece(char piece);    // Set promotion piece (default 'Q')
-void cgm_selectPromotionPiece(char piece); // Called by touch handler to pick a promotion piece
+void cgm_startGameNow(); // Begin a fresh game as white (legacy / new-game restart)
+// Set the timer mode BEFORE calling cgm_createGameNow().
+void cgm_setTimerMode(TimerMode mode);
+void cgm_createGameNow(bool aiMode = false); // Begin a fresh game as white (Create Game button)
+void cgm_joinGameNow();                      // Join an in-progress game as black (Join Game button)
+void cgm_resetManager();                     // Reset FSM back to idle (call before startGameNow)
+void cgm_requestNewGame();                   // Request restart from the GAME_END state
+void cgm_confirmPendingMove();               // Confirm the move currently awaiting approval
+void cgm_cancelPendingMove();                // Cancel/undo the move awaiting approval
+void cgm_setPromotionPiece(char piece);      // Set promotion piece (default 'Q')
+void cgm_selectPromotionPiece(char piece);   // Called by touch handler to pick a promotion piece
 
 // Load an arbitrary FEN as the committed position and enter local-turn wait.
 // Designed for edge-case testing — bypasses normal game init and server polling.
@@ -57,5 +83,14 @@ const String &cgm_getTurnStatusString(); // e.g. "Your turn (White)" for the sta
 // Fills squareName[3] (e.g. "e2\0") and returns true when exactly one piece
 // has been lifted off the committed board (local turn wait state only).
 bool cgm_getPieceLiftSquare(char squareName[3]);
+
+// ---------------------------------------------------------------------------
+// Timer queries — return 0 / false when timerMode == TIMER_NONE.
+// ---------------------------------------------------------------------------
+TimerMode cgm_getTimerMode();
+int32_t cgm_getWhiteTimeMs(); // current remaining time for white (interpolated)
+int32_t cgm_getBlackTimeMs(); // current remaining time for black (interpolated)
+bool cgm_isTimerRunning();    // true when a clock is actively ticking
+bool cgm_isTimerForWhite();   // true when white's clock is running
 
 #endif

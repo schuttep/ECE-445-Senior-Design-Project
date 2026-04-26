@@ -19,21 +19,26 @@ DFRobot_Touch_GT911_IPS touch(0x5D, SCR_TCH_RST, SCR_INT);
 DFRobot_ST7365P_320x480_HW_SPI screen(SCR_DC, SCR_CS, SCR_RST, SCR_BLK);
 
 // ===================== BUTTON REGIONS =====================
-// Menu buttons (landscape 480×320)
+// Menu buttons (landscape 480×320) — 4 rows
 #define JOIN_BTN_X 50
-#define JOIN_BTN_Y 75
+#define JOIN_BTN_Y 55
 #define JOIN_BTN_W 380
-#define JOIN_BTN_H 55
+#define JOIN_BTN_H 48
 
 #define CREATE_BTN_X 50
-#define CREATE_BTN_Y 145
+#define CREATE_BTN_Y 112
 #define CREATE_BTN_W 380
-#define CREATE_BTN_H 55
+#define CREATE_BTN_H 48
+
+#define VSAI_BTN_X 50
+#define VSAI_BTN_Y 169
+#define VSAI_BTN_W 380
+#define VSAI_BTN_H 48
 
 #define ADCID_BTN_X 50
-#define ADCID_BTN_Y 215
+#define ADCID_BTN_Y 226
 #define ADCID_BTN_W 380
-#define ADCID_BTN_H 55
+#define ADCID_BTN_H 48
 
 // Confirm / Cancel in right info panel of the game screen
 #define CONFIRM_BTN_X 272
@@ -46,6 +51,8 @@ DFRobot_ST7365P_320x480_HW_SPI screen(SCR_DC, SCR_CS, SCR_RST, SCR_BLK);
 #define CANCEL_BTN_W 192
 #define CANCEL_BTN_H 44
 
+#define GAME_MSG_MAX_LEN 96
+
 // ===================== STATE =====================
 enum ScreenState
 {
@@ -54,10 +61,13 @@ enum ScreenState
   BOARD_TEST,
   EDGE_CASE_TEST,
   WIFI_LIST,
-  WIFI_PASS_SCREEN
+  WIFI_PASS_SCREEN,
+  TIMER_MODE_SELECT,
+  AI_MODE_SELECT
 };
 ScreenState currentScreen = MENU;
 bool wifiConnected = false;
+bool isAiGame = false; // true when playing against Stockfish AI
 unsigned long menuShownAt = 0;
 unsigned long lastBoardTestUpdate = 0;
 
@@ -73,6 +83,35 @@ static bool gs_liftShown = false;
 static String gs_lastTurnStatus;     // tracks last status bar turn message
 static String gs_lastOverlayPhysFEN; // tracks last physical FEN used for display overlay
 static bool gs_lastPromoState = false;
+static char gs_messageBuf[GAME_MSG_MAX_LEN + 1] = {0};
+static bool gs_messageComposeActive = false;
+static bool gs_messageShifted = false;
+static bool gs_messageSymbols = false;
+
+// Chat history received from the server
+static ChatDisplayMsg gs_chatHistory[CHAT_MAX_DISPLAY] = {};
+static int gs_chatCount = 0;
+static int gs_lastMsgCount = -1;
+static unsigned long gs_lastMsgPoll = 0;
+#define MSG_POLL_INTERVAL_MS 5000UL
+
+// Dirty-tracking for chat panel (avoids redrawing every loop iteration)
+static int gs_lastPanelCount = -2; // -2 = never drawn
+static char gs_lastPanelDraft[GAME_MSG_MAX_LEN + 1] = {0};
+
+// Dirty-tracking for composer (avoids redrawing every loop iteration)
+static bool gs_composerDrawn = false;
+static char gs_lastComposerDraft[GAME_MSG_MAX_LEN + 1] = {0};
+static bool gs_lastComposerShifted = false;
+static bool gs_lastComposerSymbols = false;
+
+// Timer display tracking
+static unsigned long gs_lastTimerDrawMs = 0;
+static bool gs_timerDirty = false;
+
+// Hint button tracking
+static int gs_hintsLeft = 3;         // hints remaining this game for the local player
+static int gs_lastHintBtnDrawn = -1; // -1 = needs redraw; mirrors gs_hintsLeft when drawn
 
 // Physical board FEN buffer (72 bytes = worst-case FEN board + null)
 static char gs_boardFENBuf[72];
@@ -98,6 +137,8 @@ void runBoardTests();
 void drawBoardTestLive();
 void showEdgeCaseMenuScreen();
 void handleEdgeCaseTouch(int tx, int ty);
+void showTimerModeScreen();
+void showAiModeScreen();
 static void waitForTap();
 
 // ===================== SCREEN HELPERS =====================
@@ -108,7 +149,8 @@ void showMenuScreen()
 
   displayButton(JOIN_BTN_X, JOIN_BTN_Y, JOIN_BTN_W, JOIN_BTN_H, COLOR_RGB565_BLUE, "Join Game");
   displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, 0xFD20, "Create Game");
-  displayButton(ADCID_BTN_X, ADCID_BTN_Y, ADCID_BTN_W, ADCID_BTN_H, 0x630C, "Edge Case Test");
+  displayButton(VSAI_BTN_X, VSAI_BTN_Y, VSAI_BTN_W, VSAI_BTN_H, 0x07E0, "vs Stockfish AI");
+  displayButton(ADCID_BTN_X, ADCID_BTN_Y, ADCID_BTN_W, ADCID_BTN_H, 0x630C, "ADC Board Test");
 
   menuShownAt = millis();
 }
@@ -116,6 +158,7 @@ void showMenuScreen()
 void showGameScreen()
 {
   currentScreen = GAME;
+  invalidateBoardCache(); // ensure full chrome + board repaint for this game session
   gs_lastRenderedFEN = "";
   gs_lastConfirmState = false;
   gs_lastGameOver = false;
@@ -127,8 +170,43 @@ void showGameScreen()
   gs_lastTurnStatus = "";
   gs_lastOverlayPhysFEN = "";
   gs_lastPromoState = false;
+  gs_messageBuf[0] = '\0';
+  gs_messageComposeActive = false;
+  gs_messageShifted = false;
+  gs_messageSymbols = false;
+  gs_chatCount = 0;
+  gs_lastMsgCount = -1;
+  gs_lastMsgPoll = 0;
+  memset(gs_chatHistory, 0, sizeof(gs_chatHistory));
+  gs_lastPanelCount = -2;
+  gs_lastPanelDraft[0] = '\0';
+  gs_composerDrawn = false;
+  gs_lastComposerDraft[0] = '\0';
+  gs_lastComposerShifted = false;
+  gs_lastComposerSymbols = false;
+  gs_timerDirty = true;
+  gs_lastTimerDrawMs = 0;
+  gs_hintsLeft = 3;
+  gs_lastHintBtnDrawn = -1;
   // Note: the caller (touch handler) must have already called cgm_createGameNow()
   // or cgm_joinGameNow() before calling showGameScreen().
+}
+
+void showTimerModeScreen()
+{
+  currentScreen = TIMER_MODE_SELECT;
+  drawTimerModeScreen(wifiConnected);
+}
+
+// AI difficulty / timer selection screen (reuses timer mode layout).
+// After choosing, resets the game with gameMode=ai and launches the game.
+void showAiModeScreen()
+{
+  currentScreen = AI_MODE_SELECT;
+  drawTimerModeScreen(wifiConnected); // same 3-button layout, relabelled below
+  // Overdraw the title
+  screen.fillRect(0, 40, 480, 36, COLOR_RGB565_WHITE);
+  displayCenteredText("vs Stockfish — choose time control", 48, 1, COLOR_RGB565_BLACK);
 }
 
 // Draw confirm / cancel buttons as an overlay on the game screen.
@@ -300,9 +378,18 @@ void handleTouch()
     if (millis() - menuShownAt < 500)
       return;
 
+    // WiFi settings button (top-right header)
+    if (tx >= WIFI_SETTINGS_BTN_X && tx <= WIFI_SETTINGS_BTN_X + WIFI_SETTINGS_BTN_W &&
+        ty >= WIFI_SETTINGS_BTN_Y && ty <= WIFI_SETTINGS_BTN_Y + WIFI_SETTINGS_BTN_H)
+    {
+      showWifiListScreen();
+      return;
+    }
+
     if (tx >= JOIN_BTN_X && tx <= JOIN_BTN_X + JOIN_BTN_W &&
         ty >= JOIN_BTN_Y && ty <= JOIN_BTN_Y + JOIN_BTN_H)
     {
+      isAiGame = false;
       cgm_joinGameNow();
       showGameScreen();
       return;
@@ -310,33 +397,123 @@ void handleTouch()
     if (tx >= CREATE_BTN_X && tx <= CREATE_BTN_X + CREATE_BTN_W &&
         ty >= CREATE_BTN_Y && ty <= CREATE_BTN_Y + CREATE_BTN_H)
     {
-      cgm_createGameNow();
-      showGameScreen();
+      isAiGame = false;
+      showTimerModeScreen(); // let the player choose a time control first
+      return;
+    }
+    if (tx >= VSAI_BTN_X && tx <= VSAI_BTN_X + VSAI_BTN_W &&
+        ty >= VSAI_BTN_Y && ty <= VSAI_BTN_Y + VSAI_BTN_H)
+    {
+      isAiGame = true;
+      showAiModeScreen(); // choose time control then launch AI game
       return;
     }
     if (tx >= ADCID_BTN_X && tx <= ADCID_BTN_X + ADCID_BTN_W &&
         ty >= ADCID_BTN_Y && ty <= ADCID_BTN_Y + ADCID_BTN_H)
     {
-      showEdgeCaseMenuScreen();
+      runBoardTests();
       return;
     }
   }
   else if (currentScreen == GAME)
   {
-    // Back button (top-left header area)
-    if (ty < 38 && tx < 80)
-    {
-      cgm_resetManager();
-      showMenuScreen();
-      return;
-    }
-
     // If the game-over screen is up, any tap requests a new game
     if (gs_lastGameOver)
     {
       cgm_requestNewGame();
       gs_lastGameOver = false;
       showGameScreen();
+      return;
+    }
+
+    if (gs_messageComposeActive)
+    {
+      if (ty < 38 && tx < 80)
+      {
+        gs_messageComposeActive = false;
+        gs_composerDrawn = false;
+        gs_messageShifted = false;
+        gs_messageSymbols = false;
+        invalidateBoardCache();
+        gs_lastRenderedFEN = "";
+        gs_lastIncomingFEN = "";
+        gs_lastPendingFEN = "";
+        gs_lastTurnStatus = "";
+        gs_lastPanelCount = -2;
+        return;
+      }
+
+      if (ty < KB_ROW1_Y)
+        return;
+
+      char key = keyboardHitTest(tx, ty, gs_messageSymbols);
+      if (key == 0)
+        return;
+
+      if (key == '\t')
+      {
+        gs_messageShifted = !gs_messageShifted;
+      }
+      else if (key == 0x01)
+      {
+        gs_messageSymbols = !gs_messageSymbols;
+        gs_messageShifted = false;
+      }
+      else if (key == '\b')
+      {
+        int len = strlen(gs_messageBuf);
+        if (len > 0)
+          gs_messageBuf[len - 1] = '\0';
+      }
+      else if (key == '\n')
+      {
+        bool sendFailed = false;
+        if (gs_messageBuf[0] != '\0')
+        {
+          ApiResult sr = sendMessage(String(gs_messageBuf));
+          if (sr.ok)
+          {
+            gs_messageBuf[0] = '\0'; // clear draft after confirmed send
+            gs_lastMsgCount = -1;    // force re-fetch on next poll
+          }
+          else
+          {
+            sendFailed = true; // keep draft so user can retry
+          }
+        }
+        gs_messageComposeActive = false;
+        gs_composerDrawn = false;
+        gs_messageShifted = false;
+        gs_messageSymbols = false;
+        invalidateBoardCache();
+        gs_lastRenderedFEN = "";
+        gs_lastIncomingFEN = "";
+        gs_lastPendingFEN = "";
+        gs_lastTurnStatus = "";
+        gs_lastPanelCount = -2;
+        if (sendFailed)
+          displayStatusBar("Send failed - tap chat to retry", COLOR_RGB565_RED);
+      }
+      else
+      {
+        int len = strlen(gs_messageBuf);
+        if (len < GAME_MSG_MAX_LEN)
+        {
+          char ch = (!gs_messageSymbols && gs_messageShifted) ? (char)toupper(key) : key;
+          gs_messageBuf[len] = ch;
+          gs_messageBuf[len + 1] = '\0';
+          if (gs_messageShifted && !gs_messageSymbols)
+            gs_messageShifted = false;
+        }
+      }
+      return;
+    }
+
+    // Back button (top-left header area)
+    if (ty < 38 && tx < 80)
+    {
+      cgm_resetManager();
+      showMenuScreen();
       return;
     }
 
@@ -360,6 +537,41 @@ void handleTouch()
       return; // tap outside buttons — ignore
     }
 
+    // Hint button (right panel, between opponent label and chat card)
+    if (tx >= HINT_BTN_X && tx <= HINT_BTN_X + HINT_BTN_W &&
+        ty >= HINT_BTN_Y && ty <= HINT_BTN_Y + HINT_BTN_H)
+    {
+      if (gs_hintsLeft <= 0)
+      {
+        displayStatusBar("No hints remaining!", COLOR_RGB565_RED);
+        return;
+      }
+      if (!wifiConnected)
+      {
+        displayStatusBar("WiFi needed for hints", COLOR_RGB565_RED);
+        return;
+      }
+      displayStatusBar("Asking Stockfish...", COLOR_RGB565_BLUE);
+      HintResult hr = fetchBestMove(cgm_getCommittedFEN());
+      if (!hr.ok)
+      {
+        displayStatusBar(("Hint failed: " + hr.error).c_str(), COLOR_RGB565_RED);
+        return;
+      }
+      gs_hintsLeft--; // decrement locally — server no longer tracks this
+      gs_lastHintBtnDrawn = -1;
+      // Highlight the hint move (source=yellow, dest=green) without changing game state
+      drawGameScreenWithMove(wifiConnected, cgm_getCommittedFEN(), hr.afterFen,
+                             cgm_isLocalPlayerWhite(), isAiGame);
+      drawHintButton(gs_hintsLeft);
+      gs_lastHintBtnDrawn = gs_hintsLeft;
+      char statusMsg[48];
+      snprintf(statusMsg, sizeof(statusMsg), "Stockfish: %s  (%d hints left)",
+               hr.move.c_str(), gs_hintsLeft);
+      displayStatusBar(statusMsg, (uint16_t)0x0460 /* dark green */);
+      return;
+    }
+
     if (cgm_isConfirming())
     {
       if (tx >= CONFIRM_BTN_X && tx <= CONFIRM_BTN_X + CONFIRM_BTN_W &&
@@ -374,6 +586,15 @@ void handleTouch()
         cgm_cancelPendingMove();
         return;
       }
+    }
+
+    if (tx >= GAME_MSG_CARD_X && tx <= GAME_MSG_CARD_X + GAME_MSG_CARD_W &&
+        ty >= GAME_MSG_CARD_Y && ty <= GAME_MSG_CARD_Y + GAME_MSG_CARD_H)
+    {
+      gs_messageComposeActive = true;
+      gs_messageShifted = false;
+      gs_messageSymbols = false;
+      return;
     }
   }
   else if (currentScreen == BOARD_TEST)
@@ -391,6 +612,99 @@ void handleTouch()
   else if (currentScreen == WIFI_PASS_SCREEN)
   {
     handleWifiPassTouch(tx, ty);
+  }
+  else if (currentScreen == TIMER_MODE_SELECT)
+  {
+    // Back button
+    if (ty < 38 && tx < 80)
+    {
+      showMenuScreen();
+      return;
+    }
+
+    // WiFi settings button (top-right header)
+    if (tx >= WIFI_SETTINGS_BTN_X && tx <= WIFI_SETTINGS_BTN_X + WIFI_SETTINGS_BTN_W &&
+        ty >= WIFI_SETTINGS_BTN_Y && ty <= WIFI_SETTINGS_BTN_Y + WIFI_SETTINGS_BTN_H)
+    {
+      showWifiListScreen();
+      return;
+    }
+
+    TimerMode selected = TIMER_NONE;
+    bool chosen = false;
+
+    if (tx >= TIMER_BTN_X && tx <= TIMER_BTN_X + TIMER_BTN_W)
+    {
+      if (ty >= TIMER_BTN_UNLIM_Y && ty <= TIMER_BTN_UNLIM_Y + TIMER_BTN_H)
+      {
+        selected = TIMER_NONE;
+        chosen = true;
+      }
+      else if (ty >= TIMER_BTN_RAPID_Y && ty <= TIMER_BTN_RAPID_Y + TIMER_BTN_H)
+      {
+        selected = TIMER_RAPID;
+        chosen = true;
+      }
+      else if (ty >= TIMER_BTN_BULLET_Y && ty <= TIMER_BTN_BULLET_Y + TIMER_BTN_H)
+      {
+        selected = TIMER_BULLET;
+        chosen = true;
+      }
+    }
+
+    if (chosen)
+    {
+      cgm_setTimerMode(selected);
+      cgm_createGameNow(false); // pvp game
+      showGameScreen();
+    }
+  }
+  else if (currentScreen == AI_MODE_SELECT)
+  {
+    // Back button
+    if (ty < 38 && tx < 80)
+    {
+      isAiGame = false;
+      showMenuScreen();
+      return;
+    }
+
+    // WiFi settings button (top-right header)
+    if (tx >= WIFI_SETTINGS_BTN_X && tx <= WIFI_SETTINGS_BTN_X + WIFI_SETTINGS_BTN_W &&
+        ty >= WIFI_SETTINGS_BTN_Y && ty <= WIFI_SETTINGS_BTN_Y + WIFI_SETTINGS_BTN_H)
+    {
+      showWifiListScreen();
+      return;
+    }
+
+    TimerMode selected = TIMER_NONE;
+    bool chosen = false;
+
+    if (tx >= TIMER_BTN_X && tx <= TIMER_BTN_X + TIMER_BTN_W)
+    {
+      if (ty >= TIMER_BTN_UNLIM_Y && ty <= TIMER_BTN_UNLIM_Y + TIMER_BTN_H)
+      {
+        selected = TIMER_NONE;
+        chosen = true;
+      }
+      else if (ty >= TIMER_BTN_RAPID_Y && ty <= TIMER_BTN_RAPID_Y + TIMER_BTN_H)
+      {
+        selected = TIMER_RAPID;
+        chosen = true;
+      }
+      else if (ty >= TIMER_BTN_BULLET_Y && ty <= TIMER_BTN_BULLET_Y + TIMER_BTN_H)
+      {
+        selected = TIMER_BULLET;
+        chosen = true;
+      }
+    }
+
+    if (chosen)
+    {
+      cgm_setTimerMode(selected);
+      cgm_createGameNow(true); // AI game — passes gameMode="ai" to server
+      showGameScreen();
+    }
   }
 }
 
@@ -452,12 +766,17 @@ static void bt_drawFrame()
   screen.fillScreen(COLOR_RGB565_BLACK);
 
   // Header bar
-  screen.fillRect(0, 0, 480, 36, (uint16_t)0x2945);
+  screen.fillRect(0, 0, 480, 38, (uint16_t)0x2945);
+  screen.fillRect(6, 6, 68, 24, (uint16_t)0x4208);
+  screen.drawRect(6, 6, 68, 24, (uint16_t)0x7BEF);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(6, 14);
-  screen.print("ADC Board Test  ");
+  screen.setCursor(14, 14);
+  screen.print("< Back");
+  screen.setCursor(90, 14);
+  screen.print("ADC Board Test");
   screen.setTextColor((uint16_t)0x07FF); // cyan
+  screen.setCursor(212, 14);
   screen.print("Tap anywhere to exit");
 
   // Grid outline
@@ -894,25 +1213,28 @@ void loop()
       gs_lastConfirmState = false;
       gs_lastCheckState = false;
       gs_liftShown = false;
-      gs_lastTurnStatus = ""; // force status bar refresh after redraw
+      gs_lastTurnStatus = "";   // force status bar refresh after redraw
+      gs_lastPanelCount = -2;   // board redraw wipes right panel — force chat repaint
+      gs_timerDirty = true;     // board redraw wipes chrome — force timer repaint
+      gs_lastHintBtnDrawn = -1; // chrome repaint clears hint slot — force redraw
 
       bool localWhite = cgm_isLocalPlayerWhite();
       // Show move highlight if we have a before/after pair
       if (incomingFEN.length() > 0)
       {
         // Remote move being applied — highlight on screen
-        drawGameScreenWithMove(wifiNow, committedFEN, incomingFEN, localWhite);
+        drawGameScreenWithMove(wifiNow, committedFEN, incomingFEN, localWhite, isAiGame);
       }
       else if (pendingFEN.length() > 0 && committedFEN.length() > 0)
       {
         // Local move validated, awaiting confirmation
-        drawGameScreenWithMove(wifiNow, committedFEN, pendingFEN, localWhite);
+        drawGameScreenWithMove(wifiNow, committedFEN, pendingFEN, localWhite, isAiGame);
       }
       else
       {
         bool fenValid = committedFEN.length() > 0;
         drawGameScreen(wifiNow, fenValid,
-                       fenValid ? committedFEN : String("Waiting for game..."), localWhite);
+                       fenValid ? committedFEN : String("Waiting for game..."), localWhite, isAiGame);
       }
     }
 
@@ -930,6 +1252,16 @@ void loop()
     }
 
     // ----------------------------------------------------------------
+    // 5c. Hint button — redrawn after chrome refresh or count change
+    // ----------------------------------------------------------------
+    if (!gs_messageComposeActive && !cgm_isChoosingPromotion() && !gs_lastGameOver &&
+        gs_hintsLeft != gs_lastHintBtnDrawn)
+    {
+      gs_lastHintBtnDrawn = gs_hintsLeft;
+      drawHintButton(gs_hintsLeft);
+    }
+
+    // ----------------------------------------------------------------
     // 6. Piece-lift overlay (drawn on top of the board without full redraw)
     // ----------------------------------------------------------------
     if (liftDetected && !gs_liftShown)
@@ -939,12 +1271,10 @@ void loop()
     }
     else if (!liftDetected && gs_liftShown)
     {
-      // Piece was placed — clear the overlay by redrawing the board
+      // Piece was placed — erase just the lift banner strip (no board repaint).
       gs_liftShown = false;
       gs_liftSquare[0] = 0;
-      bool fenValid = committedFEN.length() > 0;
-      drawGameScreen(wifiNow, fenValid,
-                     fenValid ? committedFEN : String("Waiting for game..."), cgm_isLocalPlayerWhite());
+      clearPieceLiftOverlay();
     }
 
     // ----------------------------------------------------------------
@@ -957,11 +1287,10 @@ void loop()
     }
     else if (!inCheck && gs_lastCheckState)
     {
-      // Check resolved — redraw without banner
+      // Check resolved — erase just the check-alert strip (no board repaint).
       gs_lastCheckState = false;
-      bool fenValid = committedFEN.length() > 0;
-      drawGameScreen(wifiNow, fenValid,
-                     fenValid ? committedFEN : String("Waiting for game..."), cgm_isLocalPlayerWhite());
+      clearCheckAlert();
+      gs_timerDirty = true; // clearCheckAlert repaints the opponent label strip
     }
 
     // ----------------------------------------------------------------
@@ -974,10 +1303,96 @@ void loop()
     }
     else if (!isConfirming && gs_lastConfirmState)
     {
+      // Confirm dismissed — erase just the button area (no board repaint).
       gs_lastConfirmState = false;
-      bool fenValid = committedFEN.length() > 0;
-      drawGameScreen(wifiNow, fenValid,
-                     fenValid ? committedFEN : String("Waiting for game..."), cgm_isLocalPlayerWhite());
+      clearConfirmOverlay();
+      gs_timerDirty = true; // clearConfirmOverlay restored the player label strip
+    }
+
+    // ----------------------------------------------------------------
+    // Draw chat panel / composer — only when state has changed
+    // ----------------------------------------------------------------
+    if (gs_messageComposeActive)
+    {
+      if (!gs_composerDrawn)
+      {
+        // First time shown — full draw
+        drawGameMessageComposer(gs_messageBuf, gs_messageShifted, gs_messageSymbols);
+        strncpy(gs_lastComposerDraft, gs_messageBuf, GAME_MSG_MAX_LEN);
+        gs_lastComposerDraft[GAME_MSG_MAX_LEN] = '\0';
+        gs_lastComposerShifted = gs_messageShifted;
+        gs_lastComposerSymbols = gs_messageSymbols;
+        gs_composerDrawn = true;
+      }
+      else
+      {
+        // Partial updates only
+        if (strcmp(gs_messageBuf, gs_lastComposerDraft) != 0)
+        {
+          strncpy(gs_lastComposerDraft, gs_messageBuf, GAME_MSG_MAX_LEN);
+          gs_lastComposerDraft[GAME_MSG_MAX_LEN] = '\0';
+          drawGameMessageComposerField(gs_messageBuf);
+        }
+        if (gs_messageShifted != gs_lastComposerShifted ||
+            gs_messageSymbols != gs_lastComposerSymbols)
+        {
+          gs_lastComposerShifted = gs_messageShifted;
+          gs_lastComposerSymbols = gs_messageSymbols;
+          drawKeyboard(gs_messageShifted, gs_messageSymbols);
+        }
+      }
+    }
+    else if (!cgm_isChoosingPromotion())
+    {
+      bool panelDirty = (gs_chatCount != gs_lastPanelCount) ||
+                        (strcmp(gs_messageBuf, gs_lastPanelDraft) != 0);
+      if (panelDirty)
+      {
+        gs_lastPanelCount = gs_chatCount;
+        strncpy(gs_lastPanelDraft, gs_messageBuf, GAME_MSG_MAX_LEN);
+        gs_lastPanelDraft[GAME_MSG_MAX_LEN] = '\0';
+        drawGameMessagePanel(gs_chatHistory, gs_chatCount, gs_messageBuf);
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // 9. Message polling — fetch new messages every MSG_POLL_INTERVAL_MS
+    // ----------------------------------------------------------------
+    if (!gs_messageComposeActive && wifiNow &&
+        (now - gs_lastMsgPoll >= MSG_POLL_INTERVAL_MS || gs_lastMsgCount == -1))
+    {
+      gs_lastMsgPoll = now;
+      FetchMessagesResult fr = fetchMessages();
+      if (fr.ok && fr.count != gs_lastMsgCount)
+      {
+        gs_lastMsgCount = fr.count;
+        String myMac = WiFi.macAddress();
+        gs_chatCount = 0;
+        int start = fr.count > CHAT_MAX_DISPLAY ? fr.count - CHAT_MAX_DISPLAY : 0;
+        for (int i = start; i < fr.count && gs_chatCount < CHAT_MAX_DISPLAY; i++)
+        {
+          strncpy(gs_chatHistory[gs_chatCount].text, fr.messages[i].text,
+                  sizeof(gs_chatHistory[gs_chatCount].text) - 1);
+          gs_chatHistory[gs_chatCount].text[sizeof(gs_chatHistory[gs_chatCount].text) - 1] = '\0';
+          gs_chatHistory[gs_chatCount].isMine =
+              (myMac.equalsIgnoreCase(String(fr.messages[i].boardId)));
+          gs_chatCount++;
+        }
+      }
+    }
+
+    // ----------------------------------------------------------------
+    // 10. Timer display — update clocks every 500 ms (or when dirty)
+    // ----------------------------------------------------------------
+    if (!gs_messageComposeActive && !cgm_isChoosingPromotion() && !gs_lastGameOver &&
+        cgm_getTimerMode() != TIMER_NONE &&
+        (gs_timerDirty || now - gs_lastTimerDrawMs >= 500))
+    {
+      gs_timerDirty = false;
+      gs_lastTimerDrawMs = now;
+      drawTimerDisplay(cgm_getWhiteTimeMs(), cgm_getBlackTimeMs(),
+                       cgm_isTimerRunning(), cgm_isTimerForWhite(),
+                       cgm_isLocalPlayerWhite());
     }
   }
 

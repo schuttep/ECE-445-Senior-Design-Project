@@ -6,8 +6,14 @@ extern DFRobot_ST7365P_320x480_HW_SPI screen;
 // ── Layout constants ──────────────────────────────────────────────────────────
 static constexpr int SCR_W = 480;
 static constexpr int SCR_H = 320;
+static constexpr int HEADER_H = 38;
 static constexpr int STATUS_Y = 298; // y-start of bottom status bar (SCR_H - STATUS_H)
 static constexpr int STATUS_H = 22;  // height of status bar
+static constexpr int BACK_HIT_W = 80;
+static constexpr int BACK_BTN_X = 6;
+static constexpr int BACK_BTN_Y = 6;
+static constexpr int BACK_BTN_W = 68;
+static constexpr int BACK_BTN_H = 24;
 
 // Chess-board geometry (landscape game screen)
 static constexpr int BOARD_X = 8;            // left edge of the board
@@ -21,6 +27,48 @@ static constexpr int RPANEL_X = BOARD_X + 8 * CELL_SIZE + 8; // = 272
 static constexpr int RPANEL_W = SCR_W - RPANEL_X - 8;        // = 200
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
+
+// Per-cell board cache — avoids repainting unchanged squares every frame.
+// s_cachedBoard holds the logical content of every square as last drawn by drawFENBoard.
+// s_dirtyCells is a 64-bit bitfield (bit r*8+c) marking squares whose visual state
+// was overwritten by a highlight overlay and must be forcibly repainted next frame.
+static char s_cachedBoard[8][8] = {};
+static bool s_cacheFlipped = false;
+static bool s_cacheValid = false;
+static uint64_t s_dirtyCells = 0; // bit r*8+c → square needs forced repaint
+
+// Per-square overlay state, indexed by logical [rank][file].
+// 0 = clean, 1 = extra piece (red), 2 = missing piece (dim).
+// Avoids repainting every square every loop in drawBoardSyncOverlay.
+static uint8_t s_overlayCache[8][8] = {};
+
+// Chrome (header strip + left margin + right panel) cache.
+// Only repaint these areas when WiFi status, player colour, or fenOk changes.
+static bool s_chromeValid = false;
+static bool s_chromeWifi = false;
+static bool s_chromeIsWhite = false;
+static bool s_chromeFenOk = false;
+static bool s_chromeAiGame = false;
+
+static void drawBackButton(uint16_t bgColor = (uint16_t)0x4208,
+                           uint16_t fgColor = COLOR_RGB565_WHITE,
+                           uint16_t borderColor = (uint16_t)0xC618)
+{
+  screen.fillRect(BACK_BTN_X, BACK_BTN_Y, BACK_BTN_W, BACK_BTN_H, bgColor);
+  screen.drawRect(BACK_BTN_X, BACK_BTN_Y, BACK_BTN_W, BACK_BTN_H, borderColor);
+  screen.setTextSize(1);
+  screen.setTextColor(fgColor);
+  screen.setCursor(BACK_BTN_X + 8, BACK_BTN_Y + 8);
+  screen.print("< Back");
+}
+
+void invalidateBoardCache()
+{
+  s_cacheValid = false;
+  s_dirtyCells = 0;
+  s_chromeValid = false;                             // force chrome repaint on next drawGameScreen call
+  memset(s_overlayCache, 0, sizeof(s_overlayCache)); // overlays are gone after a full repaint
+}
 
 // Parse a board-only FEN into an 8×8 char array ('.' = empty).
 // Returns false if the FEN is malformed.
@@ -64,22 +112,39 @@ static void drawFENBoard(const String &fen, int boardX, int boardY, int cellSize
       board[r][c] = '.';
   fenToBoard(fen, board);
 
+  // Force a full repaint when the cache is cold or the orientation changed.
+  bool forceAll = !s_cacheValid || (flipped != s_cacheFlipped);
+
   for (int r = 0; r < 8; r++)
   {
-    // Rank label in the left margin (size-1: 6×8 px)
-    char rankLabel = flipped ? ('1' + r) : ('8' - r);
-    screen.setTextSize(1);
-    screen.setTextColor(COLOR_RGB565_BLACK);
-    screen.setCursor(1, boardY + r * cellSize + (cellSize - 8) / 2);
-    screen.print(rankLabel);
+    // Rank labels only need redrawing when the cache is cold (forceAll),
+    // because the left margin is only cleared during a chrome repaint, which
+    // also invalidates the board cache.  Skip them on incremental cell updates.
+    if (forceAll)
+    {
+      char rankLabel = flipped ? ('1' + r) : ('8' - r);
+      screen.setTextSize(1);
+      screen.setTextColor(COLOR_RGB565_BLACK);
+      screen.setCursor(1, boardY + r * cellSize + (cellSize - 8) / 2);
+      screen.print(rankLabel);
+    }
 
     for (int c = 0; c < 8; c++)
     {
       int fenR = flipped ? (7 - r) : r;
       int fenC = flipped ? (7 - c) : c;
+
+      // Skip squares whose content hasn't changed and have no overlay to clear.
+      bool dirty = (s_dirtyCells >> (fenR * 8 + fenC)) & 1;
+      bool changed = forceAll || dirty || (board[fenR][fenC] != s_cachedBoard[fenR][fenC]);
+      if (!changed)
+        continue;
+
       int px = boardX + c * cellSize;
       int py = boardY + r * cellSize;
       bool light = ((r + c) % 2 == 0);
+      // Painting this square overwrites any overlay — clear the overlay cache entry.
+      s_overlayCache[fenR][fenC] = 0;
       screen.fillRect(px, py, cellSize, cellSize, light ? SQ_LIGHT : SQ_DARK);
       if (board[fenR][fenC] != '.')
       {
@@ -93,6 +158,12 @@ static void drawFENBoard(const String &fen, int boardX, int boardY, int cellSize
   }
   screen.drawRect(boardX - 1, boardY - 1, 8 * cellSize + 2, 8 * cellSize + 2,
                   COLOR_RGB565_BLACK);
+
+  // Commit cache.
+  memcpy(s_cachedBoard, board, sizeof(board));
+  s_cacheFlipped = flipped;
+  s_cacheValid = true;
+  s_dirtyCells = 0;
 }
 
 // ── Primitives ────────────────────────────────────────────────────────────────
@@ -101,16 +172,30 @@ void displayClear()
   screen.fillScreen(COLOR_RGB565_WHITE);
 }
 
-void displayHeader(bool wifiConnected)
+void displayHeader(bool wifiConnected, bool showBack)
 {
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_BLACK);
 
-  screen.setCursor(20, 20);
+  if (showBack)
+    drawBackButton();
+
+  screen.setCursor(showBack ? 92 : 20, 20);
   screen.print("ChessBoard");
 
-  screen.setCursor(360, 20);
-  screen.print(wifiConnected ? "WiFi: OK" : "WiFi: --");
+  // WiFi settings button — top-right corner
+  uint16_t wifiBtnBg = wifiConnected ? (uint16_t)0x07E0 /* green */ : (uint16_t)0x4208 /* dark gray */;
+  screen.fillRect(WIFI_SETTINGS_BTN_X, WIFI_SETTINGS_BTN_Y,
+                  WIFI_SETTINGS_BTN_W, WIFI_SETTINGS_BTN_H, wifiBtnBg);
+  screen.drawRect(WIFI_SETTINGS_BTN_X, WIFI_SETTINGS_BTN_Y,
+                  WIFI_SETTINGS_BTN_W, WIFI_SETTINGS_BTN_H, (uint16_t)0xC618);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  const char *wifiLabel = wifiConnected ? "WiFi: OK" : "WiFi: --";
+  // Centre the 8-char label (48 px wide at size-1) inside the 80 px button
+  screen.setCursor(WIFI_SETTINGS_BTN_X + (WIFI_SETTINGS_BTN_W - 48) / 2,
+                   WIFI_SETTINGS_BTN_Y + (WIFI_SETTINGS_BTN_H - 8) / 2);
+  screen.print(wifiLabel);
 
   screen.drawFastHLine(0, 38, SCR_W, COLOR_RGB565_BLACK);
 }
@@ -170,74 +255,119 @@ void initDisplay()
 
 void drawConnectingScreen(const char *ssid)
 {
-  displayClear();
+  // Cover the full splash region so previous screens cannot bleed through.
+  screen.fillRect(0, 0, SCR_W, 185, COLOR_RGB565_WHITE);
   displayCenteredText("ChessBoard", 96, 3, COLOR_RGB565_BLACK);
   displayCenteredText("Connecting to WiFi...", 156, 1, COLOR_RGB565_BLACK);
   displayCenteredText(ssid, 176, 1, COLOR_RGB565_BLUE);
+  screen.fillRect(0, 185, SCR_W, STATUS_Y - 185, COLOR_RGB565_WHITE);
   displayStatusBar("Please wait...", COLOR_RGB565_BLUE);
+  invalidateBoardCache();
 }
 
 void drawMenuScreen(bool wifiConnected)
 {
-  displayClear();
+  // Header band: fill + draw together so header appears immediately.
+  screen.fillRect(0, 0, SCR_W, BOARD_Y, COLOR_RGB565_WHITE);
   displayHeader(wifiConnected);
+  // Body band: fill + draw title together.
+  screen.fillRect(0, BOARD_Y, SCR_W, STATUS_Y - BOARD_Y, COLOR_RGB565_WHITE);
   displayCenteredText("Chess Board", 58, 2, COLOR_RGB565_BLACK);
+  invalidateBoardCache();
 }
 
-void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool localIsWhite)
+void drawTimerModeScreen(bool wifiConnected)
 {
-  displayClear();
-  displayHeader(wifiConnected);
+  screen.fillRect(0, 0, SCR_W, SCR_H, COLOR_RGB565_WHITE);
+  displayHeader(wifiConnected, true);
+  displayCenteredText("Select Timer Mode", 48, 2, COLOR_RGB565_BLACK);
+
+  displayButton(TIMER_BTN_X, TIMER_BTN_UNLIM_Y, TIMER_BTN_W, TIMER_BTN_H,
+                COLOR_RGB565_WHITE, "Unlimited");
+  displayButton(TIMER_BTN_X, TIMER_BTN_RAPID_Y, TIMER_BTN_W, TIMER_BTN_H,
+                COLOR_RGB565_BLUE, "Rapid  (10:00 / side)");
+  displayButton(TIMER_BTN_X, TIMER_BTN_BULLET_Y, TIMER_BTN_W, TIMER_BTN_H,
+                0xF800 /* red */, "Bullet  (5:00 / side)");
+
+  displayStatusBar("Choose a time control for this game", COLOR_RGB565_BLUE);
+  invalidateBoardCache();
+}
+
+void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool localIsWhite, bool aiGame)
+{
+  // ── Chrome cache ────────────────────────────────────────────────────────
+  // The header strip, left margin, and right panel only need repainting when
+  // WiFi status, player colour, or board validity changes.  For normal move
+  // updates none of these change, so zero chrome pixels are written.
+  bool needChrome = !s_chromeValid || s_chromeWifi != wifiConnected || s_chromeIsWhite != localIsWhite || s_chromeFenOk != fenOk || s_chromeAiGame != aiGame;
+
+  if (needChrome)
+  {
+    // Clearing the left margin invalidates the rank labels that live there,
+    // so force a full board repaint so they are redrawn.
+    s_cacheValid = false;
+    s_dirtyCells = 0;
+
+    screen.fillRect(0, 0, SCR_W, BOARD_Y, COLOR_RGB565_WHITE);
+    screen.fillRect(0, BOARD_Y, BOARD_X - 1, 8 * CELL_SIZE + 2, COLOR_RGB565_WHITE);
+    screen.fillRect(BOARD_X + 8 * CELL_SIZE + 1, BOARD_Y - 1,
+                    SCR_W - (BOARD_X + 8 * CELL_SIZE + 1),
+                    STATUS_Y - (BOARD_Y - 1),
+                    COLOR_RGB565_WHITE);
+    displayHeader(wifiConnected, true);
+
+    screen.drawRect(RPANEL_X - 2, BOARD_Y, RPANEL_W + 2, 8 * CELL_SIZE, (uint16_t)0xC618);
+
+    const char *topLabel = aiGame ? "STOCKFISH" : (localIsWhite ? "BLACK" : "WHITE");
+    const char *botLabel = localIsWhite ? "WHITE" : "BLACK";
+    uint16_t topBg = localIsWhite ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE;
+    uint16_t botBg = localIsWhite ? COLOR_RGB565_WHITE : COLOR_RGB565_BLACK;
+    uint16_t topFg = localIsWhite ? COLOR_RGB565_WHITE : COLOR_RGB565_BLACK;
+    uint16_t botFg = localIsWhite ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE;
+
+    screen.fillRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, topBg);
+    screen.drawRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, (uint16_t)0xC618);
+    screen.setTextSize(1);
+    screen.setTextColor(topFg);
+    screen.setCursor(RPANEL_X + 4, BOARD_Y + 7);
+    screen.print(topLabel);
+    screen.print(" (opp)");
+
+    int botY = BOARD_Y + 8 * CELL_SIZE - 22;
+    screen.fillRect(RPANEL_X, botY, RPANEL_W, 22, botBg);
+    screen.drawRect(RPANEL_X, botY, RPANEL_W, 22, (uint16_t)0xC618);
+    screen.setTextColor(botFg);
+    screen.setCursor(RPANEL_X + 4, botY + 7);
+    screen.print(botLabel);
+    screen.print(" (you)");
+
+    displayStatusBar(
+        fenOk ? "Game active" : "Waiting...",
+        fenOk ? COLOR_RGB565_GREEN : COLOR_RGB565_BLUE);
+
+    s_chromeValid = true;
+    s_chromeWifi = wifiConnected;
+    s_chromeIsWhite = localIsWhite;
+    s_chromeFenOk = fenOk;
+    s_chromeAiGame = aiGame;
+  }
 
   if (fenOk)
   {
-    // Flip the board for black so the local player's pieces are always at the bottom.
     drawFENBoard(data, BOARD_X, BOARD_Y, CELL_SIZE, !localIsWhite);
   }
   else
   {
-    // Placeholder board outline
+    screen.fillRect(BOARD_X - 1, BOARD_Y - 1, 8 * CELL_SIZE + 2, 8 * CELL_SIZE + 2,
+                    COLOR_RGB565_WHITE);
     screen.drawRect(BOARD_X - 1, BOARD_Y - 1, 8 * CELL_SIZE + 2, 8 * CELL_SIZE + 2,
                     COLOR_RGB565_BLACK);
     screen.setTextSize(1);
     screen.setTextColor(COLOR_RGB565_BLACK);
     screen.setCursor(BOARD_X + 8, BOARD_Y + (8 * CELL_SIZE) / 2 - 4);
     screen.print(data);
+    s_cacheValid = false;
   }
-
-  // Right info panel outline
-  screen.drawRect(RPANEL_X - 2, BOARD_Y, RPANEL_W + 2, 8 * CELL_SIZE,
-                  (uint16_t)0xC618);
-
-  // ── Color indicators: top = opponent, bottom = local player ──────────────
-  const char *topLabel = localIsWhite ? "BLACK" : "WHITE";
-  const char *botLabel = localIsWhite ? "WHITE" : "BLACK";
-  uint16_t topBg = localIsWhite ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE;
-  uint16_t botBg = localIsWhite ? COLOR_RGB565_WHITE : COLOR_RGB565_BLACK;
-  uint16_t topFg = localIsWhite ? COLOR_RGB565_WHITE : COLOR_RGB565_BLACK;
-  uint16_t botFg = localIsWhite ? COLOR_RGB565_BLACK : COLOR_RGB565_WHITE;
-
-  // Top badge  (opponent)
-  screen.fillRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, topBg);
-  screen.drawRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, (uint16_t)0xC618);
-  screen.setTextSize(1);
-  screen.setTextColor(topFg);
-  screen.setCursor(RPANEL_X + 4, BOARD_Y + 7);
-  screen.print(topLabel);
-  screen.print(" (opp)");
-
-  // Bottom badge (local player)
-  int botY = BOARD_Y + 8 * CELL_SIZE - 22;
-  screen.fillRect(RPANEL_X, botY, RPANEL_W, 22, botBg);
-  screen.drawRect(RPANEL_X, botY, RPANEL_W, 22, (uint16_t)0xC618);
-  screen.setTextColor(botFg);
-  screen.setCursor(RPANEL_X + 4, botY + 7);
-  screen.print(botLabel);
-  screen.print(" (you)");
-
-  displayStatusBar(
-      fenOk ? "Game active" : "Waiting...",
-      fenOk ? COLOR_RGB565_GREEN : COLOR_RGB565_BLUE);
 }
 
 // ---------------------------------------------------------------------------
@@ -249,9 +379,10 @@ void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool loc
 void drawGameScreenWithMove(bool wifiConnected,
                             const String &beforeFEN,
                             const String &afterFEN,
-                            bool localIsWhite)
+                            bool localIsWhite,
+                            bool aiGame)
 {
-  drawGameScreen(wifiConnected, afterFEN.length() > 0, afterFEN, localIsWhite);
+  drawGameScreen(wifiConnected, afterFEN.length() > 0, afterFEN, localIsWhite, aiGame);
 
   if (beforeFEN.length() == 0 || afterFEN.length() == 0)
     return;
@@ -278,6 +409,10 @@ void drawGameScreenWithMove(bool wifiConnected,
       int px = BOARD_X + dc * CELL_SIZE;
       int py = BOARD_Y + dr * CELL_SIZE;
 
+      // Mark the square dirty so the next drawFENBoard call repaints it,
+      // clearing the highlight colour regardless of FEN content.
+      s_dirtyCells |= (1ULL << (r * 8 + c));
+
       if (before[r][c] != '.' && after[r][c] == '.')
       {
         // Source square (piece left): yellow
@@ -301,6 +436,9 @@ void drawGameScreenWithMove(bool wifiConnected,
 // Overlays mismatch highlights on an already-drawn board without full redraw.
 //   Extra piece  (physical!='.', logical=='.')  → red tint over the square
 //   Missing piece (logical!='.', physical=='.') → piece letter in dim red
+//
+// Uses s_overlayCache to skip squares whose mismatch state hasn't changed
+// since the last call — so only newly-changed squares write any SPI pixels.
 // ---------------------------------------------------------------------------
 void drawBoardSyncOverlay(const String &logicalFEN, const String &physicalFEN, bool flipped)
 {
@@ -333,17 +471,34 @@ void drawBoardSyncOverlay(const String &logicalFEN, const String &physicalFEN, b
       char lp = toPhys(logical[r][c]);
       char pp = physical[r][c];
 
-      // Map logical row/col to display pixel
+      // Determine new overlay state for this square.
+      uint8_t newState;
+      if (lp == pp)
+        newState = 0; // correct — no overlay
+      else if (pp != '.' && lp == '.')
+        newState = 1; // extra piece present
+      else if (pp == '.' && logical[r][c] != '.')
+        newState = 2; // piece missing
+      else
+        newState = 0;
+
+      // Skip squares whose visual state hasn't changed — zero SPI writes.
+      uint8_t oldState = s_overlayCache[r][c];
+      if (newState == oldState)
+        continue;
+
+      s_overlayCache[r][c] = newState;
+
+      // Map logical row/col to display pixel.
       int dr = flipped ? (7 - r) : r;
       int dc = flipped ? (7 - c) : c;
       int px = BOARD_X + dc * CELL_SIZE;
       int py = BOARD_Y + dr * CELL_SIZE;
       bool light = ((dr + dc) % 2 == 0);
 
-      if (lp == pp)
+      if (newState == 0)
       {
-        // Square is now correct — erase any previous mismatch highlight by
-        // redrawing it in its normal colour with the normal piece (if any).
+        // Mismatch resolved — restore the square to its normal appearance.
         screen.fillRect(px, py, CELL_SIZE, CELL_SIZE, light ? SQ_LIGHT : SQ_DARK);
         if (logical[r][c] != '.')
         {
@@ -352,22 +507,23 @@ void drawBoardSyncOverlay(const String &logicalFEN, const String &physicalFEN, b
           screen.setCursor(px + (CELL_SIZE - 12) / 2, py + (CELL_SIZE - 16) / 2);
           screen.print(logical[r][c]);
         }
-        continue;
       }
-
-      if (pp != '.' && lp == '.')
+      else if (newState == 1)
       {
-        // Extra piece: fill square with a red tint
+        // Extra piece: fill square with a red tint.
         screen.fillRect(px, py, CELL_SIZE, CELL_SIZE, EXTRA_COL);
+        // Mark dirty so drawFENBoard clears this overlay if it runs first.
+        s_dirtyCells |= (1ULL << (r * 8 + c));
       }
-      else if (pp == '.' && logical[r][c] != '.')
+      else // newState == 2
       {
-        // Missing piece: redraw square background then print piece in dim red
+        // Missing piece: normal background + piece letter in dim red.
         screen.fillRect(px, py, CELL_SIZE, CELL_SIZE, light ? SQ_LIGHT : SQ_DARK);
         screen.setTextSize(2);
         screen.setTextColor(MISSING_COL);
         screen.setCursor(px + (CELL_SIZE - 12) / 2, py + (CELL_SIZE - 16) / 2);
         screen.print(logical[r][c]);
+        s_dirtyCells |= (1ULL << (r * 8 + c));
       }
     }
   }
@@ -378,8 +534,8 @@ void drawBoardSyncOverlay(const String &logicalFEN, const String &physicalFEN, b
 // ---------------------------------------------------------------------------
 void drawCheckAlert(bool whiteInCheck)
 {
-  // Yellow banner in the right info panel, at the top
-  screen.fillRect(RPANEL_X - 2, BOARD_Y, RPANEL_W + 2, 22, COLOR_RGB565_YELLOW);
+  // Yellow banner inside the right info panel top strip (within the border).
+  screen.fillRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, COLOR_RGB565_YELLOW);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_BLACK);
   const char *msg = whiteInCheck ? "!! WHITE IN CHECK !!" : "!! BLACK IN CHECK !!";
@@ -387,12 +543,30 @@ void drawCheckAlert(bool whiteInCheck)
   screen.print(msg);
 }
 
+// Restore the top player-label strip after the check-alert banner is dismissed.
+// Uses the cached chrome state — zero board pixels are repainted.
+void clearCheckAlert()
+{
+  const char *topLabel = s_chromeIsWhite ? "BLACK" : "WHITE";
+  uint16_t topBg = s_chromeIsWhite ? (uint16_t)COLOR_RGB565_BLACK : (uint16_t)COLOR_RGB565_WHITE;
+  uint16_t topFg = s_chromeIsWhite ? (uint16_t)COLOR_RGB565_WHITE : (uint16_t)COLOR_RGB565_BLACK;
+  screen.fillRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, topBg);
+  screen.drawRect(RPANEL_X, BOARD_Y, RPANEL_W, 22, (uint16_t)0xC618);
+  screen.setTextSize(1);
+  screen.setTextColor(topFg);
+  screen.setCursor(RPANEL_X + 4, BOARD_Y + 7);
+  screen.print(topLabel);
+  screen.print(" (opp)");
+}
+
 // ---------------------------------------------------------------------------
 // drawGameOverScreen  — full-panel shown when the game ends
 // ---------------------------------------------------------------------------
 void drawGameOverScreen(const char *resultLine)
 {
-  screen.fillScreen(COLOR_RGB565_BLACK);
+  // fillScreen is not needed — the two fillRects below cover the entire screen.
+  // Invalidate caches so the game screen fully repaints if the player starts a new game.
+  invalidateBoardCache();
 
   uint16_t bannerCol = COLOR_RGB565_RED;
   if (strstr(resultLine, "stalemate") || strstr(resultLine, "Draw") ||
@@ -426,14 +600,103 @@ void drawGameOverScreen(const char *resultLine)
 // ---------------------------------------------------------------------------
 void drawPiecePickedUp(const char *squareName)
 {
-  // Orange banner in the right info panel, below any check alert
-  screen.fillRect(RPANEL_X - 2, BOARD_Y + 26, RPANEL_W + 2, 22, 0xFD20);
+  // Orange banner inside the right info panel, below any check alert (within border).
+  screen.fillRect(RPANEL_X, BOARD_Y + 26, RPANEL_W, 22, 0xFD20);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
   char buf[32];
   snprintf(buf, sizeof(buf), "  Lifted: %s", squareName ? squareName : "?");
   screen.setCursor(RPANEL_X + 2, BOARD_Y + 33);
   screen.print(buf);
+}
+
+// Clear the piece-lift banner by restoring white panel background for that strip.
+void clearPieceLiftOverlay()
+{
+  screen.fillRect(RPANEL_X, BOARD_Y + 26, RPANEL_W, 22, COLOR_RGB565_WHITE);
+}
+
+// Clear the confirm/cancel buttons by filling their area with the panel background.
+// Also restores the "you" player-label strip at the bottom of the right panel
+// (which was overwritten by the cancel button) so the caller only needs to
+// redraw the timer value on top.
+void clearConfirmOverlay()
+{
+  // Fill the button area above the bottom label strip.
+  screen.fillRect(RPANEL_X, 200, RPANEL_W, 74, COLOR_RGB565_WHITE); // y=200..274
+
+  // Restore the bottom player-label strip (same logic as in drawGameScreen chrome).
+  int botY = BOARD_Y + 8 * CELL_SIZE - 22; // = 274
+  uint16_t botBg = s_chromeIsWhite
+                       ? (uint16_t)COLOR_RGB565_WHITE
+                       : (uint16_t)COLOR_RGB565_BLACK;
+  uint16_t botFg = s_chromeIsWhite
+                       ? (uint16_t)COLOR_RGB565_BLACK
+                       : (uint16_t)COLOR_RGB565_WHITE;
+  screen.fillRect(RPANEL_X, botY, RPANEL_W, 22, botBg);
+  screen.drawRect(RPANEL_X, botY, RPANEL_W, 22, (uint16_t)0xC618);
+  screen.setTextSize(1);
+  screen.setTextColor(botFg);
+  screen.setCursor(RPANEL_X + 4, botY + 7);
+  screen.print(s_chromeIsWhite ? "WHITE" : "BLACK");
+  screen.print(" (you)");
+}
+
+// ---------------------------------------------------------------------------
+// drawTimerDisplay — overlay clock values on both player-label strips
+// ---------------------------------------------------------------------------
+// Paints only the rightmost 64 px of each strip so the label text is preserved.
+// Opponent clock → top strip (y = BOARD_Y..BOARD_Y+22).
+// My clock       → bottom strip (y = BOARD_Y+234..BOARD_Y+256, i.e. y=274..296).
+// ---------------------------------------------------------------------------
+void drawTimerDisplay(int32_t whiteMs, int32_t blackMs,
+                      bool clockRunning, bool clockForWhite,
+                      bool localIsWhite)
+{
+  // Format mm:ss; if time < 0 clamp to 0.
+  auto fmtTime = [](char *buf, int32_t ms)
+  {
+    if (ms < 0)
+      ms = 0;
+    int secs = (int)(ms / 1000);
+    int mins = secs / 60;
+    secs %= 60;
+    snprintf(buf, 8, "%02d:%02d", mins, secs);
+  };
+
+  char oppBuf[8], myBuf[8];
+  int32_t oppMs = localIsWhite ? blackMs : whiteMs;
+  int32_t myMs = localIsWhite ? whiteMs : blackMs;
+  bool oppRunning = clockRunning && (clockForWhite != localIsWhite);
+  bool myRunning = clockRunning && (clockForWhite == localIsWhite);
+
+  fmtTime(oppBuf, oppMs);
+  fmtTime(myBuf, myMs);
+
+  // ── Opponent clock (top label strip) ─────────────────────────────────────
+  int topY = BOARD_Y; // 40
+  // Background: bright green when running, dark when paused
+  uint16_t oppBg = oppRunning ? (uint16_t)COLOR_RGB565_GREEN
+                              : (uint16_t)0x2945; // dark navy
+  uint16_t oppFg = oppRunning ? (uint16_t)COLOR_RGB565_BLACK
+                              : (uint16_t)COLOR_RGB565_WHITE;
+  int timerX = RPANEL_X + RPANEL_W - 64;
+  screen.fillRect(timerX, topY + 1, 62, 20, oppBg);
+  screen.setTextSize(1);
+  screen.setTextColor(oppFg);
+  screen.setCursor(timerX + 8, topY + 7);
+  screen.print(oppBuf);
+
+  // ── My clock (bottom label strip) ────────────────────────────────────────
+  int botY = BOARD_Y + 8 * CELL_SIZE - 22; // 274
+  uint16_t myBg = myRunning ? (uint16_t)COLOR_RGB565_GREEN
+                            : (uint16_t)0x2945;
+  uint16_t myFg = myRunning ? (uint16_t)COLOR_RGB565_BLACK
+                            : (uint16_t)COLOR_RGB565_WHITE;
+  screen.fillRect(timerX, botY + 1, 62, 20, myBg);
+  screen.setTextColor(myFg);
+  screen.setCursor(timerX + 8, botY + 7);
+  screen.print(myBuf);
 }
 
 void drawPromotionPicker(bool isWhite)
@@ -483,10 +746,176 @@ void drawPromotionPicker(bool isWhite)
   }
 }
 
+// ---------------------------------------------------------------------------
+// drawHintButton — overlaid in the 27px gap between the opponent label and
+// the chat card in the right info panel.
+// ---------------------------------------------------------------------------
+void drawHintButton(int hintsLeft)
+{
+  uint16_t bg = (hintsLeft > 0) ? (uint16_t)0x001F /* blue */ : (uint16_t)0x4208 /* dark grey */;
+  screen.fillRect(HINT_BTN_X, HINT_BTN_Y, HINT_BTN_W, HINT_BTN_H, bg);
+  screen.drawRect(HINT_BTN_X, HINT_BTN_Y, HINT_BTN_W, HINT_BTN_H, (uint16_t)0xC618);
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  char label[22];
+  snprintf(label, sizeof(label), "Hint (%d left)", hintsLeft);
+  int textW = (int)strlen(label) * 6;
+  screen.setCursor(HINT_BTN_X + (HINT_BTN_W - textW) / 2,
+                   HINT_BTN_Y + (HINT_BTN_H - 8) / 2);
+  screen.print(label);
+}
+
+void drawGameMessagePanel(const ChatDisplayMsg *msgs, int count, const char *draft)
+{
+  // Card background
+  screen.fillRect(GAME_MSG_CARD_X, GAME_MSG_CARD_Y, GAME_MSG_CARD_W, GAME_MSG_CARD_H,
+                  (uint16_t)0xD6FA);
+  screen.drawRect(GAME_MSG_CARD_X, GAME_MSG_CARD_Y, GAME_MSG_CARD_W, GAME_MSG_CARD_H,
+                  (uint16_t)0x7BEF);
+
+  // Header row
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_BLACK);
+  screen.setCursor(GAME_MSG_CARD_X + 6, GAME_MSG_CARD_Y + 4);
+  screen.print("Chat");
+  screen.setTextColor((uint16_t)0x630C);
+  screen.setCursor(GAME_MSG_CARD_X + 44, GAME_MSG_CARD_Y + 4);
+  screen.print("tap to reply");
+
+  // Divider
+  screen.drawLine(GAME_MSG_CARD_X + 2, GAME_MSG_CARD_Y + 14,
+                  GAME_MSG_CARD_X + GAME_MSG_CARD_W - 2, GAME_MSG_CARD_Y + 14,
+                  (uint16_t)0xC618);
+
+  // Message bubbles — show last CHAT_MAX_DISPLAY messages
+  const int BUBBLE_H = 14;
+  const int BUBBLE_GAP = 2;
+  const int BUBBLE_X = GAME_MSG_CARD_X + 4;
+  const int BUBBLE_W = GAME_MSG_CARD_W - 8;
+  const int BUBBLES_TOP = GAME_MSG_CARD_Y + 17;
+
+  int startIdx = count > CHAT_MAX_DISPLAY ? count - CHAT_MAX_DISPLAY : 0;
+
+  for (int slot = 0; slot < CHAT_MAX_DISPLAY; slot++)
+  {
+    int msgIdx = startIdx + slot;
+    int bubY = BUBBLES_TOP + slot * (BUBBLE_H + BUBBLE_GAP);
+
+    if (msgIdx < count)
+    {
+      // Mine = light blue, theirs = light grey
+      uint16_t bg = msgs[msgIdx].isMine ? (uint16_t)0xB5F7 : (uint16_t)0xE73C;
+      screen.fillRect(BUBBLE_X, bubY, BUBBLE_W, BUBBLE_H, bg);
+
+      char preview[24];
+      strncpy(preview, msgs[msgIdx].text, sizeof(preview) - 1);
+      preview[sizeof(preview) - 1] = '\0';
+      int tlen = strlen(msgs[msgIdx].text);
+      if (tlen >= (int)(sizeof(preview) - 1))
+      {
+        preview[sizeof(preview) - 4] = '.';
+        preview[sizeof(preview) - 3] = '.';
+        preview[sizeof(preview) - 2] = '.';
+        preview[sizeof(preview) - 1] = '\0';
+      }
+      screen.setTextColor(COLOR_RGB565_BLACK);
+      screen.setCursor(BUBBLE_X + 3, bubY + 3);
+      screen.print(msgs[msgIdx].isMine ? "Me: " : "  > ");
+      screen.print(preview);
+    }
+    else
+    {
+      // Empty slot — faint placeholder
+      screen.fillRect(BUBBLE_X, bubY, BUBBLE_W, BUBBLE_H, (uint16_t)0xEF7D);
+    }
+  }
+
+  // Draft row
+  int draftY = BUBBLES_TOP + CHAT_MAX_DISPLAY * (BUBBLE_H + BUBBLE_GAP) + 2;
+  screen.setTextColor((uint16_t)0x2945);
+  screen.setCursor(BUBBLE_X, draftY);
+  screen.print("Draft: ");
+  if (draft == nullptr || draft[0] == '\0')
+  {
+    screen.setTextColor((uint16_t)0x630C);
+    screen.print("tap to type");
+  }
+  else
+  {
+    char dPrev[20];
+    strncpy(dPrev, draft, sizeof(dPrev) - 1);
+    dPrev[sizeof(dPrev) - 1] = '\0';
+    if (strlen(draft) >= (size_t)(sizeof(dPrev) - 1))
+    {
+      dPrev[sizeof(dPrev) - 4] = '.';
+      dPrev[sizeof(dPrev) - 3] = '.';
+      dPrev[sizeof(dPrev) - 2] = '.';
+      dPrev[sizeof(dPrev) - 1] = '\0';
+    }
+    screen.setTextColor(COLOR_RGB565_BLACK);
+    screen.print(dPrev);
+  }
+}
+
+void drawGameMessageComposer(const char *message, bool shifted, bool symbols)
+{
+  screen.fillRect(0, 0, SCR_W, HEADER_H, COLOR_RGB565_BLACK);
+  screen.fillRect(0, HEADER_H, SCR_W, KB_ROW1_Y - 4 - HEADER_H, COLOR_RGB565_WHITE);
+  drawBackButton((uint16_t)0x4208, COLOR_RGB565_WHITE, (uint16_t)0x7BEF);
+
+  screen.setTextSize(1);
+  screen.setTextColor(COLOR_RGB565_WHITE);
+  displayCenteredText("Draft Message", 15, 1, COLOR_RGB565_WHITE);
+  displayDivider(39, (uint16_t)0xC618);
+
+  screen.fillRect(8, 52, SCR_W - 16, 42, (uint16_t)0xEF7D);
+  screen.drawRect(8, 52, SCR_W - 16, 42, COLOR_RGB565_BLACK);
+  screen.setTextSize(1);
+  screen.setTextWrap(true);
+  screen.setCursor(12, 60);
+  if (message == nullptr || message[0] == '\0')
+  {
+    screen.setTextColor((uint16_t)0x630C);
+    screen.print("Type a note. DONE saves the draft.");
+  }
+  else
+  {
+    screen.setTextColor(COLOR_RGB565_BLACK);
+    screen.print(message);
+  }
+  screen.setTextWrap(false);
+
+  drawKeyboard(shifted, symbols);
+  displayStatusBar("DONE sends message to other board", (uint16_t)0x4208);
+}
+
+// Redraws only the draft text field inside the composer (y=52, h=42).
+// Call this instead of the full drawGameMessageComposer when only the text changed.
+void drawGameMessageComposerField(const char *message)
+{
+  screen.fillRect(8, 52, SCR_W - 16, 42, (uint16_t)0xEF7D);
+  screen.drawRect(8, 52, SCR_W - 16, 42, COLOR_RGB565_BLACK);
+  screen.setTextSize(1);
+  screen.setTextWrap(true);
+  screen.setCursor(12, 60);
+  if (message == nullptr || message[0] == '\0')
+  {
+    screen.setTextColor((uint16_t)0x630C);
+    screen.print("Type a note. DONE saves the draft.");
+  }
+  else
+  {
+    screen.setTextColor(COLOR_RGB565_BLACK);
+    screen.print(message);
+  }
+  screen.setTextWrap(false);
+}
+
 void drawEdgeCaseMenuScreen(const char *const labels[], uint8_t count, int8_t selectedIdx,
                             int8_t scrollOffset)
 {
-  screen.fillScreen(COLOR_RGB565_WHITE);
+  // Fill only the body area (buttons overwrite their rows; header is drawn immediately after).
+  screen.fillRect(0, HEADER_H, SCR_W, STATUS_Y - HEADER_H, COLOR_RGB565_WHITE);
 
   const int PAGE = 5; // max rows visible at once
   const int BTN_X = 20;
@@ -496,14 +925,15 @@ void drawEdgeCaseMenuScreen(const char *const labels[], uint8_t count, int8_t se
   const int START_Y = 46;
 
   // ---------- Header bar ----------
-  screen.fillRect(0, 0, SCR_W, 36, (uint16_t)0x2945);
+  screen.fillRect(0, 0, SCR_W, HEADER_H, (uint16_t)0x2945);
+  drawBackButton((uint16_t)0x4208, COLOR_RGB565_WHITE, (uint16_t)0x7BEF);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(6, 14);
+  screen.setCursor(90, 14);
   screen.print("Edge Case Tests");
   screen.setTextColor((uint16_t)0x07FF);
-  screen.setCursor(150, 14);
-  screen.print("Tap scenario  Back: top-left");
+  screen.setCursor(220, 14);
+  screen.print("Tap scenario");
 
   // Scroll arrows (top-right)  ▲ at x=400-439  ▼ at x=440-479
   int maxScroll = (int)count - PAGE;
@@ -597,14 +1027,13 @@ void drawErrorScreen(const char *title, const char *detail)
 
 void drawDebugScreen(const char *const lines[], uint8_t count)
 {
-  screen.fillScreen(COLOR_RGB565_BLACK);
-
-  // Green header bar with black title text
+  // Draw header band and log area directly — no pre-clear sweep.
   screen.fillRect(0, 0, SCR_W, 18, COLOR_RGB565_GREEN);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_BLACK);
   screen.setCursor(4, 5);
   screen.print("-- DEBUG --");
+  screen.fillRect(0, 18, SCR_W, SCR_H - 18, COLOR_RGB565_BLACK);
 
   // Log lines in green
   screen.setTextColor(COLOR_RGB565_GREEN);
@@ -741,12 +1170,13 @@ void drawPasswordField(const char *password, bool showChars)
 void drawPasswordScreen(const char *ssid, const char *password,
                         bool showChars, bool shifted, bool symbols)
 {
-  displayClear();
-  screen.fillRect(0, 0, SCR_W, 38, COLOR_RGB565_BLACK);
+  // Header: fill black directly (no pre-clear needed).
+  screen.fillRect(0, 0, SCR_W, HEADER_H, COLOR_RGB565_BLACK);
+  // Label area between header and keyboard/password field — fill white.
+  screen.fillRect(0, HEADER_H, SCR_W, KB_ROW1_Y - 4 - HEADER_H, COLOR_RGB565_WHITE);
+  drawBackButton((uint16_t)0x4208, COLOR_RGB565_WHITE, (uint16_t)0x7BEF);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(6, 15);
-  screen.print("< Back");
   displayCenteredText("Enter Password", 15, 1, COLOR_RGB565_WHITE);
   displayDivider(39, (uint16_t)0xC618);
 
@@ -767,12 +1197,13 @@ void drawPasswordScreen(const char *ssid, const char *password,
 
 void drawWifiListScreen(const ScannedNetwork *nets, uint8_t count, bool scanning)
 {
-  displayClear();
-  screen.fillRect(0, 0, SCR_W, 38, COLOR_RGB565_BLACK);
+  // Header: fill black directly (no pre-clear needed).
+  screen.fillRect(0, 0, SCR_W, HEADER_H, COLOR_RGB565_BLACK);
+  // Body: fill white so text labels and network-row fills have a clean background.
+  screen.fillRect(0, HEADER_H, SCR_W, STATUS_Y - HEADER_H, COLOR_RGB565_WHITE);
+  drawBackButton((uint16_t)0x4208, COLOR_RGB565_WHITE, (uint16_t)0x7BEF);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
-  screen.setCursor(6, 15);
-  screen.print("< Back");
   displayCenteredText("WiFi Settings", 15, 1, COLOR_RGB565_WHITE);
   screen.fillRect(386, 4, 88, 30, (uint16_t)0x2945);
   screen.setCursor(396, 15);
