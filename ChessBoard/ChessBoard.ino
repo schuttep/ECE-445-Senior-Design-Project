@@ -51,7 +51,7 @@ DFRobot_ST7365P_320x480_HW_SPI screen(SCR_DC, SCR_CS, SCR_RST, SCR_BLK);
 #define CANCEL_BTN_W 192
 #define CANCEL_BTN_H 44
 
-#define GAME_MSG_MAX_LEN 96
+#define GAME_MSG_MAX_LEN 200 // matches server-side 200-char limit (was 96)
 
 // ===================== STATE =====================
 enum ScreenState
@@ -141,6 +141,30 @@ void showTimerModeScreen();
 void showAiModeScreen();
 static void waitForTap();
 
+// Returns true and sets outMode if (tx, ty) falls within one of the three
+// timer-mode buttons.  Shared by TIMER_MODE_SELECT and AI_MODE_SELECT handlers.
+static bool pickTimerButton(int tx, int ty, TimerMode &outMode)
+{
+  if (tx < TIMER_BTN_X || tx > TIMER_BTN_X + TIMER_BTN_W)
+    return false;
+  if (ty >= TIMER_BTN_UNLIM_Y && ty <= TIMER_BTN_UNLIM_Y + TIMER_BTN_H)
+  {
+    outMode = TIMER_NONE;
+    return true;
+  }
+  if (ty >= TIMER_BTN_RAPID_Y && ty <= TIMER_BTN_RAPID_Y + TIMER_BTN_H)
+  {
+    outMode = TIMER_RAPID;
+    return true;
+  }
+  if (ty >= TIMER_BTN_BULLET_Y && ty <= TIMER_BTN_BULLET_Y + TIMER_BTN_H)
+  {
+    outMode = TIMER_BULLET;
+    return true;
+  }
+  return false;
+}
+
 // ===================== SCREEN HELPERS =====================
 void showMenuScreen()
 {
@@ -148,9 +172,9 @@ void showMenuScreen()
   drawMenuScreen(wifiConnected);
 
   displayButton(JOIN_BTN_X, JOIN_BTN_Y, JOIN_BTN_W, JOIN_BTN_H, COLOR_RGB565_BLUE, "Join Game");
-  displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, 0xFD20, "Create Game");
-  displayButton(VSAI_BTN_X, VSAI_BTN_Y, VSAI_BTN_W, VSAI_BTN_H, 0x07E0, "vs Stockfish AI");
-  displayButton(ADCID_BTN_X, ADCID_BTN_Y, ADCID_BTN_W, ADCID_BTN_H, 0x630C, "ADC Board Test");
+  displayButton(CREATE_BTN_X, CREATE_BTN_Y, CREATE_BTN_W, CREATE_BTN_H, COLOR_RGB565_ORANGE, "Create Game");
+  displayButton(VSAI_BTN_X, VSAI_BTN_Y, VSAI_BTN_W, VSAI_BTN_H, COLOR_RGB565_GREEN, "vs Stockfish AI");
+  displayButton(ADCID_BTN_X, ADCID_BTN_Y, ADCID_BTN_W, ADCID_BTN_H, COLOR_RGB565_OLIVE, "ADC Board Test");
 
   menuShownAt = millis();
 }
@@ -203,10 +227,8 @@ void showTimerModeScreen()
 void showAiModeScreen()
 {
   currentScreen = AI_MODE_SELECT;
-  drawTimerModeScreen(wifiConnected); // same 3-button layout, relabelled below
-  // Overdraw the title
-  screen.fillRect(0, 40, 480, 36, COLOR_RGB565_WHITE);
-  displayCenteredText("vs Stockfish — choose time control", 48, 1, COLOR_RGB565_BLACK);
+  // Pass the AI-specific title directly — no flicker from overdrawing.
+  drawTimerModeScreen(wifiConnected, "vs Stockfish: choose time control");
 }
 
 // Draw confirm / cancel buttons as an overlay on the game screen.
@@ -243,15 +265,23 @@ static bool lastTouched = false;
 
 static void waitForTap()
 {
-  delay(300);
-  while (true)
+  // Drain any current touch for 300 ms, yielding so RTOS tasks keep running.
+  unsigned long deadline = millis() + 300;
+  while (millis() < deadline)
   {
     touch.scan();
-    if (touch._pNum > 0)
-      break;
-    delay(50);
+    yield();
   }
-  delay(200);
+  // Wait for a new tap (yield each iteration to allow WiFi keepalive etc.).
+  do
+  {
+    touch.scan();
+    yield();
+  } while (touch._pNum == 0);
+  // Post-tap debounce.
+  deadline = millis() + 200;
+  while (millis() < deadline)
+    yield();
   lastTouched = true; // prevent immediate double-trigger
 }
 
@@ -568,7 +598,7 @@ void handleTouch()
       char statusMsg[48];
       snprintf(statusMsg, sizeof(statusMsg), "Stockfish: %s  (%d hints left)",
                hr.move.c_str(), gs_hintsLeft);
-      displayStatusBar(statusMsg, (uint16_t)0x0460 /* dark green */);
+      displayStatusBar(statusMsg, COLOR_RGB565_DARK_GREEN /* dark green */);
       return;
     }
 
@@ -631,28 +661,7 @@ void handleTouch()
     }
 
     TimerMode selected = TIMER_NONE;
-    bool chosen = false;
-
-    if (tx >= TIMER_BTN_X && tx <= TIMER_BTN_X + TIMER_BTN_W)
-    {
-      if (ty >= TIMER_BTN_UNLIM_Y && ty <= TIMER_BTN_UNLIM_Y + TIMER_BTN_H)
-      {
-        selected = TIMER_NONE;
-        chosen = true;
-      }
-      else if (ty >= TIMER_BTN_RAPID_Y && ty <= TIMER_BTN_RAPID_Y + TIMER_BTN_H)
-      {
-        selected = TIMER_RAPID;
-        chosen = true;
-      }
-      else if (ty >= TIMER_BTN_BULLET_Y && ty <= TIMER_BTN_BULLET_Y + TIMER_BTN_H)
-      {
-        selected = TIMER_BULLET;
-        chosen = true;
-      }
-    }
-
-    if (chosen)
+    if (pickTimerButton(tx, ty, selected))
     {
       cgm_setTimerMode(selected);
       cgm_createGameNow(false); // pvp game
@@ -678,28 +687,7 @@ void handleTouch()
     }
 
     TimerMode selected = TIMER_NONE;
-    bool chosen = false;
-
-    if (tx >= TIMER_BTN_X && tx <= TIMER_BTN_X + TIMER_BTN_W)
-    {
-      if (ty >= TIMER_BTN_UNLIM_Y && ty <= TIMER_BTN_UNLIM_Y + TIMER_BTN_H)
-      {
-        selected = TIMER_NONE;
-        chosen = true;
-      }
-      else if (ty >= TIMER_BTN_RAPID_Y && ty <= TIMER_BTN_RAPID_Y + TIMER_BTN_H)
-      {
-        selected = TIMER_RAPID;
-        chosen = true;
-      }
-      else if (ty >= TIMER_BTN_BULLET_Y && ty <= TIMER_BTN_BULLET_Y + TIMER_BTN_H)
-      {
-        selected = TIMER_BULLET;
-        chosen = true;
-      }
-    }
-
-    if (chosen)
+    if (pickTimerButton(tx, ty, selected))
     {
       cgm_setTimerMode(selected);
       cgm_createGameNow(true); // AI game — passes gameMode="ai" to server
@@ -766,26 +754,26 @@ static void bt_drawFrame()
   screen.fillScreen(COLOR_RGB565_BLACK);
 
   // Header bar
-  screen.fillRect(0, 0, 480, 38, (uint16_t)0x2945);
-  screen.fillRect(6, 6, 68, 24, (uint16_t)0x4208);
-  screen.drawRect(6, 6, 68, 24, (uint16_t)0x7BEF);
+  screen.fillRect(0, 0, 480, 38, COLOR_RGB565_DARK_NAVY);
+  screen.fillRect(6, 6, 68, 24, COLOR_RGB565_DARK_GREY);
+  screen.drawRect(6, 6, 68, 24, COLOR_RGB565_PALE_GREY);
   screen.setTextSize(1);
   screen.setTextColor(COLOR_RGB565_WHITE);
   screen.setCursor(14, 14);
   screen.print("< Back");
   screen.setCursor(90, 14);
   screen.print("ADC Board Test");
-  screen.setTextColor((uint16_t)0x07FF); // cyan
+  screen.setTextColor(COLOR_RGB565_CYAN); // cyan
   screen.setCursor(212, 14);
   screen.print("Tap anywhere to exit");
 
   // Grid outline
   screen.drawRect(BT_BOARD_X - 1, BT_BOARD_Y - 1,
-                  8 * BT_CELL + 2, 8 * BT_CELL + 2, (uint16_t)0x7BEF);
+                  8 * BT_CELL + 2, 8 * BT_CELL + 2, COLOR_RGB565_PALE_GREY);
 
   // Column labels  a-h
   screen.setTextSize(1);
-  screen.setTextColor((uint16_t)0x7BEF);
+  screen.setTextColor(COLOR_RGB565_PALE_GREY);
   for (int c = 0; c < 8; c++)
   {
     screen.setCursor(BT_BOARD_X + c * BT_CELL + 12, BT_BOARD_Y + 8 * BT_CELL + 4);
@@ -809,11 +797,11 @@ static void bt_drawFrame()
   screen.setTextColor(COLOR_RGB565_WHITE);
   screen.setCursor(lx + 18, 58);
   screen.print("N-pole (+)");
-  screen.fillRect(lx, 76, 14, 12, (uint16_t)0xFD20);
+  screen.fillRect(lx, 76, 14, 12, COLOR_RGB565_ORANGE);
   screen.setCursor(lx + 18, 76);
   screen.print("S-pole (-)");
-  screen.fillRect(lx, 94, 14, 12, (uint16_t)0x4208);
-  screen.setTextColor((uint16_t)0x7BEF);
+  screen.fillRect(lx, 94, 14, 12, COLOR_RGB565_DARK_GREY);
+  screen.setTextColor(COLOR_RGB565_PALE_GREY);
   screen.setCursor(lx + 18, 94);
   screen.print("Empty");
 
@@ -842,12 +830,12 @@ static void bt_redrawGrid()
       }
       else if (d <= -BT_THRESHOLD)
       {
-        col = (uint16_t)0xFD20; // orange
+        col = COLOR_RGB565_ORANGE; // orange
         label = 'p';
       }
       else
       {
-        col = (uint16_t)0x4208; // dark grey
+        col = COLOR_RGB565_DARK_GREY; // dark grey
       }
       screen.fillRect(px + 1, py + 1, BT_CELL - 2, BT_CELL - 2, col);
       if (label != '.')
@@ -907,7 +895,7 @@ void drawBoardTestLive()
     int lx = BT_BOARD_X + 8 * BT_CELL + 12;
     screen.fillRect(lx, 138, 480 - lx - 4, 14, COLOR_RGB565_BLACK);
     screen.setTextSize(1);
-    screen.setTextColor((uint16_t)0x07FF); // cyan
+    screen.setTextColor(COLOR_RGB565_CYAN); // cyan
     screen.setCursor(lx, 138);
     screen.print(bt_lastLabel[0] ? bt_lastLabel : "(none)");
   }

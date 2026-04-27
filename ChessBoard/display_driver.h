@@ -2,6 +2,7 @@
 #define DISPLAY_DRIVER_H
 
 #include <Arduino.h>
+#include "headers.h"
 #include "wifi_manager.h"
 
 // ===========================================================================
@@ -42,7 +43,8 @@ void drawMenuScreen(bool wifiConnected);
 
 // Timer mode selection screen shown after "Create Game" is tapped.
 // Three buttons let the player choose: Unlimited, Rapid (10 min), Bullet (5 min).
-void drawTimerModeScreen(bool wifiConnected);
+// title — heading text; defaults to "Select Timer Mode".
+void drawTimerModeScreen(bool wifiConnected, const char *title = "Select Timer Mode");
 
 // WiFi settings button — top-right corner of the header (all screens).
 #define WIFI_SETTINGS_BTN_X 392
@@ -123,7 +125,7 @@ void drawTimerDisplay(int32_t whiteMs, int32_t blackMs,
 #define CHAT_MAX_DISPLAY 3
 struct ChatDisplayMsg
 {
-    char text[97];
+    char text[201]; // matches API_MSG_TEXT_LEN (200) + null terminator
     bool isMine;
 };
 
@@ -156,7 +158,7 @@ void drawGameMessageComposerField(const char *message);
 #define HINT_BTN_X 272
 #define HINT_BTN_Y 63
 #define HINT_BTN_W 196
-#define HINT_BTN_H 27
+#define HINT_BTN_H 31 // was 27 — increased for easier touch target
 
 // Draw (or refresh) the hint button with the remaining hint count.
 // hintsLeft > 0 → blue button; 0 → dark-grey (exhausted).

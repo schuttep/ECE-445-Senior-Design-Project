@@ -718,7 +718,7 @@ def lambda_handler(event, context):
             return resp(500, {"error": {"code": "STOCKFISH_ERROR", "message": str(err)}})
 
         color_name = "White" if is_white else "Black"
-        msg_text   = f"[HINT] {color_name} used Stockfish assistance"
+        msg_text   = f"{color_name} used Stockfish assistance."
         now        = int(time.time())
         msg_entry  = {"boardId": board_id, "text": msg_text, "at": now}
 

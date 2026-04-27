@@ -53,7 +53,7 @@ ApiResult sendHeartbeat();
 
 // ---- Messenger ----
 #define API_MSG_MAX_COUNT 10
-#define API_MSG_TEXT_LEN 96
+#define API_MSG_TEXT_LEN 200 // matches server-side 200-char limit
 
 struct ChatMessage
 {
