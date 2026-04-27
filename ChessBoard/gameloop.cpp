@@ -475,7 +475,9 @@ enum CGMGameResult
     CGM_RESULT_BLACK_WIN,
     CGM_RESULT_STALEMATE,
     CGM_RESULT_DRAW_50_MOVE,
-    CGM_RESULT_DRAW_MATERIAL
+    CGM_RESULT_DRAW_MATERIAL,
+    CGM_RESULT_WHITE_TIMEOUT, // white ran out of time — black wins
+    CGM_RESULT_BLACK_TIMEOUT, // black ran out of time — white wins
 };
 
 // ============================================================
@@ -539,21 +541,28 @@ struct ChessGameManager
 
     CGMGameResult result;
 
-    // ── Timer state ────────────────────────────────────────────────────────
-    TimerMode timerMode;     // selected before game creation
-    int32_t timerWhiteMs;    // white remaining ms (as of timerFetchMs)
-    int32_t timerBlackMs;    // black remaining ms (as of timerFetchMs)
-    bool timerClockRunning;  // is a clock currently ticking?
-    bool timerClockForWhite; // which side's clock (only valid when running)
-    uint32_t timerFetchMs;   // local millis() when timer state was last synced
+    // ── Timer state — managed entirely on Arduino side ─────────────────────
+    TimerMode timerMode;        // selected before game creation
+    int32_t timerWhiteMs;       // white remaining ms (snapshot, updated each tick)
+    int32_t timerBlackMs;       // black remaining ms (snapshot, updated each tick)
+    uint32_t timerLastUpdateMs; // millis() when timer was last ticked (0 = paused)
+    bool timerBothConnected;    // true once both player IDs are registered on server
+    bool timerFirstMoveMade;    // true after first move is committed
+
+    // ── AI difficulty ───────────────────────────────────────────────────────
+    int aiDifficulty; // Stockfish search depth for AI games
 };
 
 ChessGameManager cgm;
 
 // Timer mode selected via the UI before cgm_createGameNow() is called.
 static TimerMode cgm_pendingTimerMode = TIMER_NONE;
+// AI difficulty selected via the UI before cgm_createGameNow(true) is called.
+static AiDifficulty cgm_pendingAiDifficulty = AI_MEDIUM;
 // Timestamp of the last heartbeat sent (local millis).
 static uint32_t cgm_lastHeartbeatMs = 0;
+// Timestamp of the last opponent-connected check (local millis).
+static uint32_t cgm_lastOpponentCheckMs = 0;
 
 bool cgm_isChoosingPromotion()
 {
@@ -790,25 +799,24 @@ void cgm_ledShowMoveSquares(const String &beforeFEN, const String &afterFEN)
 // Networking helpers  (delegate to api_connect / wifi_manager)
 // ============================================================
 
-// Apply timer state from a fetchGameState() response into cgm.
-// Only updates the timer fields; all other FSM state is untouched.
-static void cgm_applyTimerState(const GameStateResult &gs)
+// Apply timer initial state from a fetchGameState() response.
+// Called during join-polling to inherit the timer mode chosen by the creating board.
+// Only sets the initial budget; subsequent ticking is done locally in cgm_tick().
+static void cgm_applyInitialTimerState(const GameStateResult &gs)
 {
-    if (gs.timerMode == "none" || gs.timerMode.length() == 0)
-        return; // no timer active
-
-    cgm.timerWhiteMs = gs.whiteTimeMs;
-    cgm.timerBlackMs = gs.blackTimeMs;
-    cgm.timerClockRunning = gs.clockRunning;
-    cgm.timerClockForWhite = gs.clockForWhite;
-    cgm.timerFetchMs = millis();
-    // Keep timerMode in sync with what the server says
     if (gs.timerMode == "rapid")
         cgm.timerMode = TIMER_RAPID;
     else if (gs.timerMode == "bullet")
         cgm.timerMode = TIMER_BULLET;
     else
         cgm.timerMode = TIMER_NONE;
+
+    if (cgm.timerMode != TIMER_NONE)
+    {
+        int32_t initMs = gs.timerInitMs > 0 ? gs.timerInitMs : (int32_t)cgm.timerMode;
+        cgm.timerWhiteMs = initMs;
+        cgm.timerBlackMs = initMs;
+    }
 }
 
 void cgm_connectWiFi()
@@ -882,6 +890,10 @@ String cgm_resultToString(CGMGameResult result)
         return "Draw - 50 move rule";
     if (result == CGM_RESULT_DRAW_MATERIAL)
         return "Draw - insufficient material";
+    if (result == CGM_RESULT_WHITE_TIMEOUT)
+        return "Black wins on time";
+    if (result == CGM_RESULT_BLACK_TIMEOUT)
+        return "White wins on time";
     return "Game active";
 }
 
@@ -902,6 +914,11 @@ static String cgm_lastSyncMsg = "";
 void cgm_setTimerMode(TimerMode mode)
 {
     cgm_pendingTimerMode = mode;
+}
+
+void cgm_setAiDifficulty(AiDifficulty difficulty)
+{
+    cgm_pendingAiDifficulty = difficulty;
 }
 
 void cgm_resetManager()
@@ -927,14 +944,17 @@ void cgm_resetManager()
     cgm.lastRejectedFEN = "";
     cgm.serverVersion = 0;
     cgm.result = CGM_RESULT_NONE;
-    // Timer fields
+    // Timer fields — fully managed on Arduino side
     cgm.timerMode = TIMER_NONE;
     cgm.timerWhiteMs = 0;
     cgm.timerBlackMs = 0;
-    cgm.timerClockRunning = false;
-    cgm.timerClockForWhite = false;
-    cgm.timerFetchMs = 0;
+    cgm.timerLastUpdateMs = 0;
+    cgm.timerBothConnected = false;
+    cgm.timerFirstMoveMade = false;
+    // AI difficulty
+    cgm.aiDifficulty = (int)AI_MEDIUM;
     cgm_lastHeartbeatMs = 0;
+    cgm_lastOpponentCheckMs = 0;
 }
 
 void cgm_startGameNow()
@@ -994,14 +1014,25 @@ void cgm_createGameNow(bool aiMode)
 {
     cgm_resetManager();
     cgm.localIsWhite = true;
-    cgm.timerMode = cgm_pendingTimerMode; // inherit from cgm_setTimerMode()
-    // Pre-populate the timer displays with the initial time budget so the
-    // player sees the correct value before the first server poll.
-    cgm.timerWhiteMs = (int32_t)cgm.timerMode;
-    cgm.timerBlackMs = (int32_t)cgm.timerMode;
+    cgm.aiDifficulty = (int)cgm_pendingAiDifficulty;
+    if (!aiMode)
+    {
+        // PvP: inherit timer mode; AI games use no timer
+        cgm.timerMode = cgm_pendingTimerMode;
+        // Pre-populate display with the initial time budget
+        cgm.timerWhiteMs = (int32_t)cgm.timerMode;
+        cgm.timerBlackMs = (int32_t)cgm.timerMode;
+        // AI board counts as instantly connected; PvP waits for opponent
+        cgm.timerBothConnected = false;
+    }
+    else
+    {
+        cgm.timerMode = TIMER_NONE; // no timer for AI games
+    }
     cgm_joinedFEN = "";
     displayStatusBar("Resetting game...", COLOR_RGB565_BLUE);
-    resetGame(timerModeStr(cgm.timerMode), WiFi.macAddress(), aiMode ? "ai" : "pvp");
+    resetGame(timerModeStr(cgm.timerMode), WiFi.macAddress(),
+              aiMode ? "ai" : "pvp", cgm.aiDifficulty);
     cgm.state = CGM_GAME_INITIALIZATION;
 }
 
@@ -1121,7 +1152,13 @@ void cgm_handleJoinPolling()
         cgm_joinedWhiteToMove = gs.whiteToMove;
         cgm.serverVersion = gs.version;
         cgm.localIsWhite = gs.isWhite; // assigned by server based on MAC address
-        cgm_applyTimerState(gs);
+        cgm_applyInitialTimerState(gs);
+        // Both boards connected: white was already registered, we are black joining now
+        if (!cgm.localIsWhite)
+            cgm.timerBothConnected = true;
+        // First move is already made if version > 0
+        if (gs.version > 0)
+            cgm.timerFirstMoveMade = true;
         String turnLabel = gs.whiteToMove ? "White to move" : "Black to move";
         cgm_uiMessage(cgm.localIsWhite ? "You are White" : "You are Black", turnLabel);
         Serial0.printf("[JOIN] Inherited FEN: %s  whiteToMove=%d  isWhite=%d\n",
@@ -1132,6 +1169,7 @@ void cgm_handleJoinPolling()
         // No game in progress — start fresh and wait for white's first move.
         cgm_joinedFEN = "";
         cgm_joinedWhiteToMove = true;
+        cgm_applyInitialTimerState(gs); // still pick up timer mode from server
         cgm_uiMessage("No active game", "Waiting for opponent to start");
     }
 
@@ -1411,6 +1449,13 @@ void cgm_handleSendState()
     cgm.pendingFEN = "";
     cgm_ledClear();
 
+    // Mark the first move as made so timers can start counting
+    if (!cgm.timerFirstMoveMade)
+    {
+        cgm.timerFirstMoveMade = true;
+        cgm.timerLastUpdateMs = 0; // reset tick base so no phantom time accrues
+    }
+
     cgm.whiteToMove = !cgm.whiteToMove;
 
     CGMGameResult result = cgm_getGameResult(cgm.committedFEN, cgm.whiteToMove, cgm.castling);
@@ -1437,11 +1482,45 @@ void cgm_handleWaitForRemoteMove()
     GameStateResult gs = fetchGameState();
     if (!gs.ok)
     {
+        // ok=false when version==0 (no moves yet) or a network error.
+        // Still check opponentJoined and gameResult even in the version==0 case.
+        if (gs.opponentJoined && !cgm.timerBothConnected)
+        {
+            cgm.timerBothConnected = true;
+            cgm.timerLastUpdateMs = 0; // restart tick base cleanly
+        }
+        if (gs.gameResult == "white_timeout")
+        {
+            cgm_finishGame(CGM_RESULT_WHITE_TIMEOUT);
+            return;
+        }
+        if (gs.gameResult == "black_timeout")
+        {
+            cgm_finishGame(CGM_RESULT_BLACK_TIMEOUT);
+            return;
+        }
         cgm_uiMessage("Polling failed");
         return;
     }
 
-    cgm_applyTimerState(gs);
+    // Update opponent-connected flag
+    if (gs.opponentJoined && !cgm.timerBothConnected)
+    {
+        cgm.timerBothConnected = true;
+        cgm.timerLastUpdateMs = 0;
+    }
+
+    // Check for remote timeout notification
+    if (gs.gameResult == "white_timeout")
+    {
+        cgm_finishGame(CGM_RESULT_WHITE_TIMEOUT);
+        return;
+    }
+    if (gs.gameResult == "black_timeout")
+    {
+        cgm_finishGame(CGM_RESULT_BLACK_TIMEOUT);
+        return;
+    }
 
     String latestFen = cgm_boardOnlyFen(gs.fen);
 
@@ -1491,6 +1570,13 @@ void cgm_handleApplyRemoteMove()
     cgm.committedFEN = cgm.remoteIncomingFEN;
     cgm.remoteIncomingFEN = "";
     cgm_ledClear();
+
+    // Mark first move made (remote move counts too)
+    if (!cgm.timerFirstMoveMade)
+    {
+        cgm.timerFirstMoveMade = true;
+        cgm.timerLastUpdateMs = 0;
+    }
 
     cgm.whiteToMove = !cgm.whiteToMove;
 
@@ -1543,12 +1629,85 @@ void cgm_tick()
 
     // ── Heartbeat ────────────────────────────────────────────────────────────
     // Send a keepalive so the server knows this board is still connected.
-    // The server uses heartbeats to start / pause / resume the game clock.
     if (cgm.gameActive && cgm_wifiConnected() &&
         now - cgm_lastHeartbeatMs >= CGMConfig::HEARTBEAT_INTERVAL_MS)
     {
         cgm_lastHeartbeatMs = now;
         sendHeartbeat();
+    }
+
+    // ── Opponent-connected check (background poll while in local-turn states) ─
+    // White's board doesn't call fetchGameState() during its local turn, so we
+    // do a lightweight poll here to detect when black registers on the server.
+    if (cgm.timerMode != TIMER_NONE && !cgm.timerBothConnected && cgm.gameActive &&
+        cgm_wifiConnected() &&
+        now - cgm_lastOpponentCheckMs >= CGMConfig::POLL_INTERVAL_MS)
+    {
+        cgm_lastOpponentCheckMs = now;
+        GameStateResult gs = fetchGameState();
+        if (gs.opponentJoined)
+        {
+            cgm.timerBothConnected = true;
+            cgm.timerLastUpdateMs = 0; // reset so first tick doesn't count gap
+        }
+    }
+
+    // ── Local timer tick ─────────────────────────────────────────────────────
+    // Clocks are managed entirely on the Arduino. The active side's timer ticks
+    // every loop iteration.  Conditions for the clock to run:
+    //   • timer mode is set (not TIMER_NONE)
+    //   • both boards have connected at least once
+    //   • the first move has been made (game in progress)
+    //   • we are NOT in the SEND_STATE (move being sent — pause clock)
+    //   • game is active (not game-over or initialising)
+    if (cgm.timerMode != TIMER_NONE && cgm.gameActive)
+    {
+        bool shouldTick = cgm.timerBothConnected &&
+                          cgm.timerFirstMoveMade &&
+                          cgm.state != CGM_SEND_STATE &&
+                          cgm.state != CGM_BOARD_SYNC &&
+                          cgm.state != CGM_GAME_INITIALIZATION &&
+                          cgm.state != CGM_JOIN_POLLING &&
+                          cgm.state != CGM_WAIT_FOR_GAME_START &&
+                          cgm.state != CGM_GAME_END;
+
+        if (shouldTick)
+        {
+            if (cgm.timerLastUpdateMs > 0)
+            {
+                uint32_t elapsed = now - cgm.timerLastUpdateMs;
+                bool isMyTurn = (cgm.whiteToMove == cgm.localIsWhite);
+
+                if (cgm.whiteToMove)
+                {
+                    cgm.timerWhiteMs -= (int32_t)elapsed;
+                    if (cgm.timerWhiteMs < 0)
+                        cgm.timerWhiteMs = 0;
+                    // Only trigger timeout when it is OUR clock expiring
+                    if (isMyTurn && cgm.timerWhiteMs == 0)
+                    {
+                        notifyTimeout("white");
+                        cgm_finishGame(CGM_RESULT_WHITE_TIMEOUT);
+                    }
+                }
+                else
+                {
+                    cgm.timerBlackMs -= (int32_t)elapsed;
+                    if (cgm.timerBlackMs < 0)
+                        cgm.timerBlackMs = 0;
+                    if (isMyTurn && cgm.timerBlackMs == 0)
+                    {
+                        notifyTimeout("black");
+                        cgm_finishGame(CGM_RESULT_BLACK_TIMEOUT);
+                    }
+                }
+            }
+            cgm.timerLastUpdateMs = now;
+        }
+        else
+        {
+            cgm.timerLastUpdateMs = 0; // paused — reset so no phantom time on resume
+        }
     }
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -1790,43 +1949,36 @@ TimerMode cgm_getTimerMode()
     return cgm.timerMode;
 }
 
-// Returns white's current remaining time in ms, interpolating locally
-// between server syncs so the display counts down smoothly.
+// Returns white's current remaining time in ms (directly from local tracking).
 int32_t cgm_getWhiteTimeMs()
 {
-    if (cgm.timerMode == TIMER_NONE)
-        return 0;
-    int32_t ms = cgm.timerWhiteMs;
-    if (cgm.timerClockRunning && cgm.timerClockForWhite && cgm.timerFetchMs > 0)
-    {
-        uint32_t elapsed = millis() - cgm.timerFetchMs;
-        ms -= (int32_t)elapsed;
-    }
-    return ms < 0 ? 0 : ms;
+    return cgm.timerWhiteMs;
 }
 
-// Returns black's current remaining time in ms.
+// Returns black's current remaining time in ms (directly from local tracking).
 int32_t cgm_getBlackTimeMs()
 {
-    if (cgm.timerMode == TIMER_NONE)
-        return 0;
-    int32_t ms = cgm.timerBlackMs;
-    if (cgm.timerClockRunning && !cgm.timerClockForWhite && cgm.timerFetchMs > 0)
-    {
-        uint32_t elapsed = millis() - cgm.timerFetchMs;
-        ms -= (int32_t)elapsed;
-    }
-    return ms < 0 ? 0 : ms;
+    return cgm.timerBlackMs;
 }
 
+// True when the timer is actively ticking (both connected, first move made, not paused).
 bool cgm_isTimerRunning()
 {
-    return cgm.timerClockRunning;
+    if (cgm.timerMode == TIMER_NONE || !cgm.gameActive)
+        return false;
+    return cgm.timerBothConnected &&
+           cgm.timerFirstMoveMade &&
+           cgm.state != CGM_SEND_STATE &&
+           cgm.state != CGM_BOARD_SYNC &&
+           cgm.state != CGM_GAME_INITIALIZATION &&
+           cgm.state != CGM_JOIN_POLLING &&
+           cgm.state != CGM_GAME_END;
 }
 
+// True when white's clock is the active one.
 bool cgm_isTimerForWhite()
 {
-    return cgm.timerClockForWhite;
+    return cgm.whiteToMove;
 }
 
 // ============================================================

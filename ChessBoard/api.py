@@ -155,6 +155,11 @@ def lambda_handler(event, context):
         if not item:
             return resp(404, {"error": {"code": "NOT_FOUND", "message": "game not found"}})
 
+        white_id = item.get("whitePlayerId", "")
+        black_id  = item.get("blackPlayerId",  "")
+        timer_mode = item.get("timerMode", "none")
+        timer_init_ms = int(item.get("timerInitMs", 0))
+
         return resp(200, {
             "gameId": game_id,
             "status": item.get("status"),
@@ -162,12 +167,14 @@ def lambda_handler(event, context):
             "turn": item.get("turn"),
             "version": item.get("version", 0),
             "lastMoveAt": item.get("lastMoveAt"),
-            "color": "white" if query_params.get("boardId", "") == item.get("whitePlayerId", "") and item.get("whitePlayerId", "") != "" else "black",
-            # Timer fields
-            "timerMode": item.get("timerMode", "none"),
-            "whiteTimeMs": _compute_timers(item, int(time.time() * 1000))[0],
-            "blackTimeMs":  _compute_timers(item, int(time.time() * 1000))[1],
-            "clockRunningFor": item.get("clockRunningFor", ""),
+            "color": "white" if query_params.get("boardId", "") == white_id and white_id != "" else "black",
+            # Timer fields — boards manage clocks locally; server only stores mode + init budget
+            "timerMode": timer_mode,
+            "timerInitMs": timer_init_ms,
+            # Connectivity — both registered when both playerIds are set
+            "opponentJoined": (white_id != "" and black_id != ""),
+            # Game result set by /timeout or future endpoints
+            "gameResult": item.get("gameResult", ""),
         })
 
     # GET /api/v1/games/{gameId}/messages
@@ -324,60 +331,13 @@ def lambda_handler(event, context):
             "fen": fen_next,
         }
 
-        # ── Timer bookkeeping ────────────────────────────────────────────────
-        timer_mode = existing.get("timerMode", "none")
-        timer_set_parts = {}
-        timer_remove_parts = []
-
-        if timer_mode != "none":
-            now_ms = int(time.time() * 1000)
-            white_ms, black_ms = _compute_timers(existing, now_ms)
-
-            # Deduct the time used by the side that just moved
-            # current_turn "A" = white moved, "B" = black moved
-            if current_turn == "A":
-                white_ms = max(0, white_ms)   # already computed with deduction
-            else:
-                black_ms  = max(0, black_ms)
-
-            # Decide whether to start the opponent's clock.
-            # Only start it if the opponent board has been seen recently.
-            last_seen_white = int(existing.get("lastSeenWhite", 0))
-            last_seen_black  = int(existing.get("lastSeenBlack",  0))
-            opp_fresh = (
-                (next_turn == "A" and last_seen_white > 0 and now - last_seen_white < STALE_THRESHOLD_S) or
-                (next_turn == "B" and last_seen_black  > 0 and now - last_seen_black  < STALE_THRESHOLD_S)
-            )
-
-            timer_set_parts["whiteTimeMs"]        = Decimal(white_ms)
-            timer_set_parts["blackTimeMs"]         = Decimal(black_ms)
-            timer_set_parts["clockLastStartedAt"] = Decimal(now_ms if opp_fresh else 0)
-
-            if opp_fresh:
-                clock_color = "white" if next_turn == "A" else "black"
-                timer_set_parts["clockRunningFor"] = clock_color
-            else:
-                timer_remove_parts.append("clockRunningFor")
-        # ────────────────────────────────────────────────────────────────────
-
         try:
-            # Build timer SET / REMOVE clauses
-            timer_set_str = ""
-            timer_remove_str = ""
-            for k, v in timer_set_parts.items():
-                white_player_values[f":{k}"] = v
-                timer_set_str += f", {k}=:{k}"
-            if timer_remove_parts:
-                timer_remove_str = " REMOVE " + ", ".join(timer_remove_parts)
-
             table.update_item(
                 Key={"gameId": game_id},
                 UpdateExpression=(
                     "SET #s=:active, #fen=:fen, #turn=:next_turn, #ver=:next_ver, "
                     "lastMoveAt=:t, moveHistory=list_append(if_not_exists(moveHistory, :empty), :new_move)"
                     + white_player_update
-                    + timer_set_str
-                    + timer_remove_str
                 ),
                 ConditionExpression="#ver = :expected_ver",
                 ExpressionAttributeNames={
@@ -423,12 +383,13 @@ def lambda_handler(event, context):
             try:
                 import chess
                 import chess.engine
+                ai_depth = int(existing.get("aiDepth", 5))
                 # next_turn is "B" (black to move) — build a full FEN with correct active colour
                 ai_full_fen = _to_full_fen(fen_next, "B")
                 ai_board = chess.Board(ai_full_fen)
                 with chess.engine.SimpleEngine.popen_uci("/opt/bin/stockfish") as engine:
                     engine.configure({"Hash": 16})
-                    ai_result = engine.play(ai_board, chess.engine.Limit(depth=5))
+                    ai_result = engine.play(ai_board, chess.engine.Limit(depth=ai_depth))
                 ai_uci = ai_result.move.uci()
                 ai_board.push(ai_result.move)
                 ai_fen = ai_board.fen()
@@ -502,6 +463,9 @@ def lambda_handler(event, context):
         timer_init_ms    = TIMER_MODES[timer_mode]
         creator_board_id = body.get("boardId", "").strip()[:32]
         game_mode        = "ai" if body.get("gameMode") == "ai" else "pvp"
+        ai_depth         = int(body.get("aiDepth", 5))
+        if ai_depth < 1:  ai_depth = 1
+        if ai_depth > 15: ai_depth = 15
 
         try:
             now = int(time.time())
@@ -512,10 +476,7 @@ def lambda_handler(event, context):
                     "lastMoveAt=:t, moveHistory=:history, "
                     "whitePlayerId=:wpid, blackPlayerId=:bpid, #msgs=:no_msgs, "
                     "timerMode=:tm, timerInitMs=:ti, "
-                    "whiteTimeMs=:wt, blackTimeMs=:bt, "
-                    "clockLastStartedAt=:zero, "
-                    "lastSeenWhite=:lsw, lastSeenBlack=:lsb, "
-                    "gameMode=:gm "
+                    "gameMode=:gm, aiDepth=:ad, gameResult=:gr "
                     "REMOVE clockRunningFor"
                 ),
                 ExpressionAttributeNames={
@@ -537,12 +498,9 @@ def lambda_handler(event, context):
                     ":no_msgs": [],
                     ":tm": timer_mode,
                     ":ti": Decimal(timer_init_ms),
-                    ":wt": Decimal(timer_init_ms),
-                    ":bt": Decimal(timer_init_ms),
-                    ":zero": Decimal(0),
-                    ":lsw": Decimal(now if creator_board_id else 0),
-                    ":lsb": Decimal(0),
                     ":gm": game_mode,
+                    ":ad": ai_depth,
+                    ":gr": "",
                 },
             )
         except ClientError as err:
@@ -559,7 +517,9 @@ def lambda_handler(event, context):
             "lastMoveAt": now,
             "movesCleared": True,
             "timerMode": timer_mode,
+            "timerInitMs": timer_init_ms,
             "gameMode": game_mode,
+            "aiDepth": ai_depth,
         })
 
     # POST /api/v1/games/{gameId}/heartbeat
@@ -577,85 +537,24 @@ def lambda_handler(event, context):
             if not item:
                 return resp(404, {"error": {"code": "NOT_FOUND", "message": "game not found"}})
 
-            now     = int(time.time())
-            now_ms  = now * 1000
-
             white_id = item.get("whitePlayerId", "")
             black_id  = item.get("blackPlayerId",  "")
-            timer_mode = item.get("timerMode", "none")
-            timer_init_ms = int(item.get("timerInitMs", 0))
-            clock_for     = item.get("clockRunningFor")
-            turn          = item.get("turn", "A")
 
-            last_seen_white = int(item.get("lastSeenWhite", 0))
-            last_seen_black  = int(item.get("lastSeenBlack",  0))
+            set_parts   = []
+            expr_values = {}
 
-            set_parts    = []
-            remove_parts = []
-            expr_values  = {}
+            # Register the second board as black when it first connects
+            is_white     = (board_id == white_id and white_id != "")
+            is_new_black = (not is_white and black_id == "" and white_id != "")
 
-            # Identify the sender and update their last-seen timestamp
-            is_white  = (board_id == white_id and white_id != "")
-            is_black  = (board_id == black_id  and black_id  != "")
-            is_new_black = (not is_white and not is_black
-                            and black_id == "" and white_id != "")
-
-            if is_white:
-                set_parts.append("lastSeenWhite=:lsw")
-                expr_values[":lsw"] = Decimal(now)
-                last_seen_white = now
-            elif is_new_black:
+            if is_new_black:
                 set_parts.append("blackPlayerId=:bpid")
-                set_parts.append("lastSeenBlack=:lsb")
                 expr_values[":bpid"] = board_id
-                expr_values[":lsb"]  = Decimal(now)
-                black_id      = board_id
-                last_seen_black = now
-            elif is_black:
-                set_parts.append("lastSeenBlack=:lsb")
-                expr_values[":lsb"] = Decimal(now)
-                last_seen_black = now
 
-            # ── Timer clock management ─────────────────────────────────────
-            if timer_mode != "none" and timer_init_ms > 0 and white_id and black_id:
-                white_fresh = (last_seen_white > 0
-                               and now - last_seen_white < STALE_THRESHOLD_S)
-                black_fresh  = (last_seen_black  > 0
-                                and now - last_seen_black  < STALE_THRESHOLD_S)
-                both_connected = white_fresh and black_fresh
-
-                white_ms, black_ms = _compute_timers(item, now_ms)
-
-                if both_connected and clock_for is None:
-                    # Both boards online — resume clock for the side to move
-                    clock_color = "white" if turn == "A" else "black"
-                    set_parts.append("clockRunningFor=:crf")
-                    set_parts.append("clockLastStartedAt=:clsa")
-                    set_parts.append("whiteTimeMs=:wtm")
-                    set_parts.append("blackTimeMs=:btm")
-                    expr_values[":crf"]  = clock_color
-                    expr_values[":clsa"] = Decimal(now_ms)
-                    expr_values[":wtm"]  = Decimal(white_ms)
-                    expr_values[":btm"]  = Decimal(black_ms)
-                elif not both_connected and clock_for is not None:
-                    # A board went away — pause clock and snapshot remaining times
-                    remove_parts.append("clockRunningFor")
-                    set_parts.append("clockLastStartedAt=:zero")
-                    set_parts.append("whiteTimeMs=:wtm")
-                    set_parts.append("blackTimeMs=:btm")
-                    expr_values[":zero"] = Decimal(0)
-                    expr_values[":wtm"]  = Decimal(white_ms)
-                    expr_values[":btm"]  = Decimal(black_ms)
-
-            if set_parts or remove_parts:
-                expr = ""
-                if set_parts:
-                    expr = "SET " + ", ".join(set_parts)
-                if remove_parts:
-                    expr += (" " if expr else "") + "REMOVE " + ", ".join(remove_parts)
+            if set_parts:
                 table.update_item(
                     Key={"gameId": game_id},
-                    UpdateExpression=expr,
+                    UpdateExpression="SET " + ", ".join(set_parts),
                     ExpressionAttributeValues=expr_values,
                 )
         except ClientError as err:
@@ -743,5 +642,36 @@ def lambda_handler(event, context):
             "move":     best_move,
             "afterFen": after_fen,
         })
+
+    # POST /api/v1/games/{gameId}/timeout
+    # Called by the board whose clock expired.  Records the game result so the
+    # other board can detect it on its next poll.
+    if method == "POST" and tail is not None and len(tail) == 2 and tail[1] == "timeout":
+        game_id = tail[0]
+        if game_id != SINGLE_GAME_ID:
+            return resp(404, {"error": {"code": "NOT_FOUND", "message": "game not found"}})
+
+        loser = body.get("loser", "").strip().lower()   # "white" or "black"
+        if loser not in ("white", "black"):
+            return resp(400, {"error": {"code": "BAD_REQUEST", "message": "loser must be 'white' or 'black'"}})
+
+        game_result = f"{loser}_timeout"
+
+        try:
+            table.update_item(
+                Key={"gameId": game_id},
+                UpdateExpression="SET gameResult=:gr, #s=:over",
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={
+                    ":gr": game_result,
+                    ":over": "TIMEOUT",
+                },
+            )
+        except ClientError as err:
+            return resp(500, client_error_payload("DDB_TIMEOUT_FAILED", err))
+        except Exception as err:
+            return resp(500, {"error": {"code": "TIMEOUT_FAILED", "message": str(err)}})
+
+        return resp(200, {"gameResult": game_result})
 
     return resp(404, {"error": {"code": "NOT_FOUND", "message": "route not found"}})

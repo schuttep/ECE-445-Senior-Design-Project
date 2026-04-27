@@ -40,6 +40,9 @@ static constexpr const char *MESSAGES_URL =
     "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/messages";
 static constexpr const char *HEARTBEAT_URL =
     "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/heartbeat";
+static constexpr const char *TIMEOUT_URL =
+    "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/timeout";
+
 static constexpr const char *HINT_URL =
     "https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1/hint";
 
@@ -109,13 +112,14 @@ ApiResult fetchLatestFEN()
 // Returns the current game state including which color this board is assigned.
 // Sends the board's MAC address as a query param so the server can return the
 // correct color by comparing it to the stored whitePlayerId.
-// Returns ok=false when version == 0 (no moves yet, game not started).
+// Returns ok=false when version == 0 (no moves yet, game not started),
+// but still populates opponentJoined so timer arming can be detected early.
 GameStateResult fetchGameState()
 {
   if (WiFi.status() != WL_CONNECTED)
   {
     Serial0.println("WiFi not connected");
-    return {false, "", true, 0, false};
+    return {false, "", true, 0, false, "none", 0, false, ""};
   }
 
   WiFiClientSecure client;
@@ -131,7 +135,7 @@ GameStateResult fetchGameState()
   {
     Serial0.println("fetchGameState: request failed");
     http.end();
-    return {false, "", true, 0, false, "none", 0, 0, false, false};
+    return {false, "", true, 0, false, "none", 0, false, ""};
   }
 
   String payload = http.getString();
@@ -139,15 +143,25 @@ GameStateResult fetchGameState()
 
   JsonDocument doc;
   if (deserializeJson(doc, payload))
-    return {false, "", true, 0, false, "none", 0, 0, false, false};
+    return {false, "", true, 0, false, "none", 0, false, ""};
 
   int version = doc["version"] | 0;
+  bool opponentJoined = doc["opponentJoined"] | false;
+  const char *gameResult = doc["gameResult"] | "";
+
   if (version == 0)
-    return {false, "", true, 0, false, "none", 0, 0, false, false}; // no moves yet
+  {
+    // No moves yet — return partial result so callers can check opponentJoined
+    return {false, "", true, 0, false,
+            String(doc["timerMode"] | "none"),
+            (int32_t)(doc["timerInitMs"] | 0),
+            opponentJoined,
+            String(gameResult)};
+  }
 
   const char *fen = doc["fen"];
   if (!fen)
-    return {false, "", true, 0, false, "none", 0, 0, false, false};
+    return {false, "", true, 0, false, "none", 0, opponentJoined, String(gameResult)};
 
   // turn "A" = white to move (A starts), "B" = black to move
   const char *turn = doc["turn"] | "A";
@@ -157,18 +171,14 @@ GameStateResult fetchGameState()
   const char *color = doc["color"] | "black";
   bool isWhite = (strcmp(color, "white") == 0);
 
-  // Timer fields
+  // Timer fields — server only stores mode and initial budget
   const char *timerMode = doc["timerMode"] | "none";
-  int32_t whiteTimeMs = (int32_t)(doc["whiteTimeMs"] | 0);
-  int32_t blackTimeMs = (int32_t)(doc["blackTimeMs"] | 0);
-  const char *clockFor = doc["clockRunningFor"] | "";
-  bool clockRunning = (clockFor[0] != '\0');
-  bool clockForWhite = (strcmp(clockFor, "white") == 0);
+  int32_t timerInitMs = (int32_t)(doc["timerInitMs"] | 0);
 
-  Serial0.printf("fetchGameState: fen=%s whiteToMove=%d version=%d isWhite=%d timer=%s\n",
-                 fen, (int)whiteToMove, version, (int)isWhite, timerMode);
+  Serial0.printf("fetchGameState: fen=%s whiteToMove=%d version=%d isWhite=%d timer=%s opponentJoined=%d\n",
+                 fen, (int)whiteToMove, version, (int)isWhite, timerMode, (int)opponentJoined);
   return {true, String(fen), whiteToMove, version, isWhite,
-          String(timerMode), whiteTimeMs, blackTimeMs, clockRunning, clockForWhite};
+          String(timerMode), timerInitMs, opponentJoined, String(gameResult)};
 }
 
 ApiResult pushLatestFEN(const String &move, const String &fen)
@@ -285,11 +295,8 @@ ApiResult pushFENState(const String &fen, const String &move, int expectedVersio
 
 // ---------------------------------------------------------------------------
 // resetGame — POST /api/v1/games/1/reset
-// Resets board state to starting position and initialises timer mode.
-// boardId (MAC address) is registered as white immediately so the timer can
-// start as soon as the second board sends its first heartbeat.
 // ---------------------------------------------------------------------------
-ApiResult resetGame(const char *timerMode, const String &boardId, const char *gameMode)
+ApiResult resetGame(const char *timerMode, const String &boardId, const char *gameMode, int aiDepth)
 {
   if (WiFi.status() != WL_CONNECTED)
     return {false, "WiFi not connected"};
@@ -304,6 +311,7 @@ ApiResult resetGame(const char *timerMode, const String &boardId, const char *ga
   JsonDocument doc;
   doc["timerMode"] = timerMode;
   doc["gameMode"] = gameMode;
+  doc["aiDepth"] = aiDepth;
   if (boardId.length() > 0)
     doc["boardId"] = boardId;
 
@@ -314,7 +322,7 @@ ApiResult resetGame(const char *timerMode, const String &boardId, const char *ga
   String response = http.getString();
   http.end();
 
-  Serial0.printf("[API] resetGame code: %d timerMode: %s gameMode: %s\n", code, timerMode, gameMode);
+  Serial0.printf("[API] resetGame code: %d timerMode: %s gameMode: %s aiDepth: %d\n", code, timerMode, gameMode, aiDepth);
 
   if (code < 200 || code >= 300)
     return {false, "HTTP " + String(code)};
@@ -348,6 +356,36 @@ ApiResult sendHeartbeat()
   int code = http.POST(body);
   http.end();
 
+  return {code >= 200 && code < 300, ""};
+}
+
+// ---------------------------------------------------------------------------
+// notifyTimeout — POST /api/v1/games/1/timeout
+// Records the timeout result on the server so the other board detects it.
+// loserColor: "white" or "black"
+// ---------------------------------------------------------------------------
+ApiResult notifyTimeout(const char *loserColor)
+{
+  if (WiFi.status() != WL_CONNECTED)
+    return {false, "WiFi not connected"};
+
+  WiFiClientSecure client;
+  client.setCACert(AWS_ROOT_CA);
+
+  HTTPClient http;
+  http.begin(client, TIMEOUT_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  JsonDocument doc;
+  doc["loser"] = loserColor;
+
+  String body;
+  serializeJson(doc, body);
+
+  int code = http.POST(body);
+  http.end();
+
+  Serial0.printf("[API] notifyTimeout code: %d loser: %s\n", code, loserColor);
   return {code >= 200 && code < 300, ""};
 }
 

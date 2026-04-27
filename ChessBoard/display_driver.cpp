@@ -313,6 +313,23 @@ void drawTimerModeScreen(bool wifiConnected, const char *title)
   invalidateBoardCache();
 }
 
+void drawAiDifficultyScreen(bool wifiConnected)
+{
+  screen.fillRect(0, 0, SCR_W, SCR_H, COLOR_RGB565_WHITE);
+  displayHeader(wifiConnected, true);
+  displayCenteredText("vs Stockfish AI", 48, 2, COLOR_RGB565_BLACK);
+
+  displayButton(AI_BTN_X, AI_BTN_EASY_Y, AI_BTN_W, AI_BTN_H,
+                COLOR_RGB565_GREEN, "Easy");
+  displayButton(AI_BTN_X, AI_BTN_MEDIUM_Y, AI_BTN_W, AI_BTN_H,
+                COLOR_RGB565_ORANGE, "Medium");
+  displayButton(AI_BTN_X, AI_BTN_HARD_Y, AI_BTN_W, AI_BTN_H,
+                COLOR_RGB565_RED, "Hard");
+
+  displayStatusBar("Choose AI difficulty", COLOR_RGB565_BLUE);
+  invalidateBoardCache();
+}
+
 void drawGameScreen(bool wifiConnected, bool fenOk, const String &data, bool localIsWhite, bool aiGame)
 {
   // -- Chrome cache --------------------------------------------------------

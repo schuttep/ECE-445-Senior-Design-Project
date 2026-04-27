@@ -46,6 +46,10 @@ void drawMenuScreen(bool wifiConnected);
 // title — heading text; defaults to "Select Timer Mode".
 void drawTimerModeScreen(bool wifiConnected, const char *title = "Select Timer Mode");
 
+// AI difficulty selection screen shown after "vs Stockfish AI" is tapped.
+// Three buttons: Easy (depth 2), Medium (depth 5), Hard (depth 12).
+void drawAiDifficultyScreen(bool wifiConnected);
+
 // WiFi settings button — top-right corner of the header (all screens).
 #define WIFI_SETTINGS_BTN_X 392
 #define WIFI_SETTINGS_BTN_Y 5
@@ -59,6 +63,14 @@ void drawTimerModeScreen(bool wifiConnected, const char *title = "Select Timer M
 #define TIMER_BTN_UNLIM_Y 80
 #define TIMER_BTN_RAPID_Y 150
 #define TIMER_BTN_BULLET_Y 220
+
+// Hit-test regions for the AI difficulty buttons (same layout as timer buttons).
+#define AI_BTN_X TIMER_BTN_X
+#define AI_BTN_W TIMER_BTN_W
+#define AI_BTN_H TIMER_BTN_H
+#define AI_BTN_EASY_Y TIMER_BTN_UNLIM_Y
+#define AI_BTN_MEDIUM_Y TIMER_BTN_RAPID_Y
+#define AI_BTN_HARD_Y TIMER_BTN_BULLET_Y
 
 // Game screen showing the current board state.
 // fenOk=true  -> data is a valid FEN and will be rendered as a board grid.

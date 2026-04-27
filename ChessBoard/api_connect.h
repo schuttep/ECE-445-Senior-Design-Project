@@ -15,7 +15,9 @@ ApiResult fetchLatestFEN();
 // Fetch the current game state: board FEN, whose turn it is, server version,
 // and which color this board is assigned.
 // Sends this board's MAC address so the server can return the correct color.
-// Returns ok=false when no moves have been recorded yet (game not started).
+// Returns ok=false when no moves have been recorded yet (game not started),
+// but still populates opponentJoined so callers can detect when the second
+// board registers before any moves are made.
 struct GameStateResult
 {
     bool ok;
@@ -23,12 +25,13 @@ struct GameStateResult
     bool whiteToMove; // true = white to move next
     int version;      // server-side version counter for optimistic concurrency
     bool isWhite;     // true = this board is the white player
-    // Timer fields (populated when timerMode != "none")
+    // Timer fields — server only stores mode and initial budget; boards track clocks locally
     String timerMode;    // "none" | "rapid" | "bullet"
-    int32_t whiteTimeMs; // white's remaining time in ms at time of fetch
-    int32_t blackTimeMs; // black's remaining time in ms at time of fetch
-    bool clockRunning;   // true = one side's clock is ticking
-    bool clockForWhite;  // true = white's clock is running (only valid when clockRunning)
+    int32_t timerInitMs; // initial time budget per side in ms (0 when timerMode=="none")
+    // Connectivity
+    bool opponentJoined; // true when both whitePlayerId and blackPlayerId are registered
+    // Game result — non-empty when set by /timeout or similar
+    String gameResult; // "" | "white_timeout" | "black_timeout"
 };
 GameStateResult fetchGameState();
 
@@ -45,7 +48,13 @@ ApiResult pushFENState(const String &fen, const String &move, int expectedVersio
 //   timerMode  — "none" (default), "rapid", or "bullet"
 //   boardId    — MAC address of the creating board (registered as white immediately)
 //   gameMode   — "pvp" (default) or "ai" (play against Stockfish)
-ApiResult resetGame(const char *timerMode = "none", const String &boardId = "", const char *gameMode = "pvp");
+//   aiDepth    — Stockfish search depth for AI games (1-15, default 5)
+ApiResult resetGame(const char *timerMode = "none", const String &boardId = "", const char *gameMode = "pvp", int aiDepth = 5);
+
+// Notify the server that a player ran out of time.
+// loserColor: "white" or "black"
+// The server records the result so the other board can detect it on its next poll.
+ApiResult notifyTimeout(const char *loserColor);
 
 // Send a heartbeat so the server knows this board is still connected.
 // The server uses heartbeats to start / pause the game clock.

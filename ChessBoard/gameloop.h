@@ -4,7 +4,7 @@
 #include <Arduino.h>
 
 // ---------------------------------------------------------------------------
-// Timer mode — select before calling cgm_createGameNow().
+// Timer mode — select before calling cgm_createGameNow() for PvP games.
 // ---------------------------------------------------------------------------
 enum TimerMode
 {
@@ -28,6 +28,17 @@ inline const char *timerModeStr(TimerMode m)
 }
 
 // ---------------------------------------------------------------------------
+// AI difficulty — select before calling cgm_createGameNow(true) for AI games.
+// Value is the Stockfish search depth sent to the server.
+// ---------------------------------------------------------------------------
+enum AiDifficulty
+{
+    AI_EASY = 2,   // Stockfish depth 2 — quick / casual
+    AI_MEDIUM = 5, // Stockfish depth 5 — moderate challenge
+    AI_HARD = 12,  // Stockfish depth 12 — strong play
+};
+
+// ---------------------------------------------------------------------------
 // Initialisation — call once from setup() after hardware and WiFi are ready.
 // ---------------------------------------------------------------------------
 void cgm_setup();
@@ -47,8 +58,10 @@ void cgm_setPhysicalBoardFEN(const String &fen);
 // Game control — map these to UI events (touch buttons, menu items).
 // ---------------------------------------------------------------------------
 void cgm_startGameNow(); // Begin a fresh game as white (legacy / new-game restart)
-// Set the timer mode BEFORE calling cgm_createGameNow().
+// Set the timer mode BEFORE calling cgm_createGameNow() (PvP games only).
 void cgm_setTimerMode(TimerMode mode);
+// Set AI difficulty BEFORE calling cgm_createGameNow(true) (AI games only).
+void cgm_setAiDifficulty(AiDifficulty difficulty);
 void cgm_createGameNow(bool aiMode = false); // Begin a fresh game as white (Create Game button)
 void cgm_joinGameNow();                      // Join an in-progress game as black (Join Game button)
 void cgm_resetManager();                     // Reset FSM back to idle (call before startGameNow)
@@ -86,10 +99,11 @@ bool cgm_getPieceLiftSquare(char squareName[3]);
 
 // ---------------------------------------------------------------------------
 // Timer queries — return 0 / false when timerMode == TIMER_NONE.
+// Timers are tracked entirely on the Arduino side.
 // ---------------------------------------------------------------------------
 TimerMode cgm_getTimerMode();
-int32_t cgm_getWhiteTimeMs(); // current remaining time for white (interpolated)
-int32_t cgm_getBlackTimeMs(); // current remaining time for black (interpolated)
+int32_t cgm_getWhiteTimeMs(); // current remaining time for white
+int32_t cgm_getBlackTimeMs(); // current remaining time for black
 bool cgm_isTimerRunning();    // true when a clock is actively ticking
 bool cgm_isTimerForWhite();   // true when white's clock is running
 

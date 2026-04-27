@@ -222,13 +222,12 @@ void showTimerModeScreen()
   drawTimerModeScreen(wifiConnected);
 }
 
-// AI difficulty / timer selection screen (reuses timer mode layout).
+// AI difficulty selection screen — three buttons: Easy, Medium, Hard.
 // After choosing, resets the game with gameMode=ai and launches the game.
 void showAiModeScreen()
 {
   currentScreen = AI_MODE_SELECT;
-  // Pass the AI-specific title directly — no flicker from overdrawing.
-  drawTimerModeScreen(wifiConnected, "vs Stockfish: choose time control");
+  drawAiDifficultyScreen(wifiConnected);
 }
 
 // Draw confirm / cancel buttons as an overlay on the game screen.
@@ -686,12 +685,33 @@ void handleTouch()
       return;
     }
 
-    TimerMode selected = TIMER_NONE;
-    if (pickTimerButton(tx, ty, selected))
+    // Difficulty buttons reuse the same X/W/H/Y positions as the timer buttons
+    if (tx >= AI_BTN_X && tx <= AI_BTN_X + AI_BTN_W)
     {
-      cgm_setTimerMode(selected);
-      cgm_createGameNow(true); // AI game — passes gameMode="ai" to server
-      showGameScreen();
+      AiDifficulty diff = AI_MEDIUM;
+      bool hit = false;
+      if (ty >= AI_BTN_EASY_Y && ty <= AI_BTN_EASY_Y + AI_BTN_H)
+      {
+        diff = AI_EASY;
+        hit = true;
+      }
+      else if (ty >= AI_BTN_MEDIUM_Y && ty <= AI_BTN_MEDIUM_Y + AI_BTN_H)
+      {
+        diff = AI_MEDIUM;
+        hit = true;
+      }
+      else if (ty >= AI_BTN_HARD_Y && ty <= AI_BTN_HARD_Y + AI_BTN_H)
+      {
+        diff = AI_HARD;
+        hit = true;
+      }
+      if (hit)
+      {
+        cgm_setTimerMode(TIMER_NONE); // no timer for AI games
+        cgm_setAiDifficulty(diff);
+        cgm_createGameNow(true); // AI game — passes gameMode="ai" + aiDepth to server
+        showGameScreen();
+      }
     }
   }
 }
@@ -1199,6 +1219,13 @@ void loop()
       gs_lastIncomingFEN = incomingFEN;
       gs_lastPendingFEN = pendingFEN;
       gs_lastConfirmState = false;
+      // If the check alert banner was showing, restore the top label strip now
+      // before the board redraw — drawGameScreen caches chrome and won't touch it.
+      if (gs_lastCheckState)
+      {
+        clearCheckAlert();
+        gs_timerDirty = true;
+      }
       gs_lastCheckState = false;
       gs_liftShown = false;
       gs_lastTurnStatus = "";   // force status bar refresh after redraw
