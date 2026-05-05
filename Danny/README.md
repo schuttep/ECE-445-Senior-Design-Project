@@ -1,5 +1,41 @@
 # Danny's Worklog
 
+# 2026-01-21 - First Group Meeting
+Met with the team for the first time to discuss possible project ideas. We each came up with an idea to post to the web board. Payton suggested two physical chess boards that could play each other over the internet. We liked the chess board idea the most because it felt the most realistic and interesting, but we still posted all three ideas to get feedback from course staff.
+
+# 2026-01-24 - Getting Ideas on Paper
+Met with the team again to narrow down the project idea and start putting more details together. We officially decided to move forward with the Networked Physical Chess Board for Remote Play. The main idea was to have two physical boards connected over the internet so two players could play remotely. We also decided that LEDs would show the opponent’s moves and that the board would include a touch display UI. We wrote these ideas into an informal document so we could keep track of the early design direction.
+
+# 2026-01-28 - Request for Approval
+Worked with the team to write and submit our Request for Approval early for extra credit. We wrote out the problem we wanted to solve, our proposed solution, the main subsystems, our criterion for success, and the major components we planned to use. At this point we were planning on using Hall effect sensors, an ESP32, an I2C ADC, and a touch screen display.
+
+# 2026-02-02 - Buying Breadboard Parts
+Worked on getting our initial breadboard parts ordered. This included Hall effect sensors, magnets, ADCs, and adapters so we could actually test the parts on a breadboard. We had to change our original ADC because it was not in stock, so we switched to the ADS7128. This still gave us the functionality we needed while also being cheaper and easier to get. We also ordered magnets so we could test how sensitive the Hall effect sensors were at different distances.
+
+# 2026-02-10 - Preparing for First TA Meeting
+Met with the team to prepare for our first TA meeting. The main focus was getting a better block diagram together so we could explain our project at a high level. We broke the design into the major subsystems and listed the hardware each part would need. This helped us explain how the sensing, display, WiFi, and game logic would all connect.
+
+# 2026-02-11 - First TA Meeting
+Met with our TA to go over the initial high-level design. We got mostly positive feedback. There was some confusion at first about how the physical layout of the boards would work, but we talked through it and cleared it up. Overall it seemed like we were moving in the right direction.
+
+# 2026-02-11 - DigiKey Order Issue
+There was an issue with our DigiKey order for the breadboard parts. The order had not updated and there was an error when trying to look it up. We contacted DigiKey support and found out that the order had to be placed again. They reimbursed the cost, but they could not speed up shipping. Luckily the parts were still expected to arrive in time for us to use them.
+
+# 2026-02-13 - Project Proposal Document
+Finished writing the Project Proposal Document with the team. This document went into more detail than the RFA and included our subsystems, component choices, physical design, and overall plan for the project. It helped turn the early idea into a more concrete design.
+
+# 2026-02-14 - PCB Size Clarification
+We needed to figure out the actual PCB size limits before finalizing our hardware design. We found out from Professor Fliflet that we were limited to a 10 cm square PCB. Our original plan was to make one large PCB the size of the chess board, but that was not allowed. We adjusted the plan so the main PCB would hold the MCU, power circuitry, and ADCs. The Hall effect sensors would sit under the individual chess squares and wire back to headers on the main board.
+
+# 2026-02-15 - Display Connector Planning
+Worked on figuring out how the display would connect to the rest of the system. Since the display was an important part of the user interface, we needed to make sure the connector and wiring made sense for the ESP32 and our physical board layout. This was mostly planning and checking compatibility so we would not design around a display connection that would be difficult to use later.
+
+# 2026-02-16 - Main PCB Schematics
+Worked on the main PCB schematic for the project. The goal was to get the ESP32, ADCs, power, headers, and supporting components connected correctly before routing the board. This was an important step because the main board would become the center of the whole system and connect to the Hall effect sensors under the chess tiles.
+
+# 2026-02-23 - Initial Breadboard Setup
+Met with the team for the first time to discuss possible project ideas. We each came up with an idea to post to the web board. I suggested an auto dealer poker machine, another idea was a universal game board with an E-ink display, and Payton suggested two physical chess boards that could play each other over the internet. We liked the chess board idea the most because it felt the most realistic and interesting, but we still posted all three ideas to get feedback from course staff.
+
 # 2026-03-02 - Discussion with Professor Fliflet
 Discussed project at Design Review with Professor Fliflet. He suggested we add tolerance section to our design document as well as splitting up the workload in the schedule section between all of our group members. 
 
