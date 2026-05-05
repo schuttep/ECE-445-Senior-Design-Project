@@ -36,3 +36,35 @@ Spent time debugging issues with the display and how FEN strings were being read
 
 # 2026-04-23 - Mock Demo + Working Single Board Game
 Held our mock demo with our TA to simulate how the full system will function during presentation. During the demo there was a slight hiccup that prevented us from fully being able to show the working single board. After the demo we worked more and realized we were reading an incorrect MAC address for the board to be able to properly interface with the university WiFi. At this point we successfully got a single board fully working with move detection, validation, and display updates. The board can now detect piece movement, verify legality using our move checking logic, and update the display accordingly. It also correctly displays checkmates as well. This was a big milestone because it shows that the core gameplay loop works on one board. Focus moving forward will be first on printing, soldering, and assembling a second board. Then we will shift focus to syncing two boards together over WiFi and polishing the overall user experience on the displays for the final demo.
+
+# 2026-04-27 - Final Demo Prep
+Met with team to discuss what order we will display our functionality in. Also developed a move sequence to show implementations of En Passant, Promotions, Castling, and Checkmate. This way we have a predetermined game we will run through with for the professor to see our full functionality. The move order is as follows:
+
+1. e4 f6
+2. e5 d5
+3. exd6 e.p. Bd7 (En Passant)
+4. dxc7 g5 (Capture)
+5. cxb8=Q Rxb8 (Promotion)
+6. Nc3 a6
+7. d3 a5
+8. Bd2 a4
+9. Qg4 a3
+10. O-O-O b6 (Castling)
+11. Qh5# (Checkmate)
+
+We will talk throughout while also playing the game against the two boards. We decided to split the talking points between us to highlight what each of us specialized in this project. 
+
+# 2026-04-28 - Final Presentation Prep
+Worked on my portion of the Final Presentation slides today. Included all the information on FEN strings and how move validation works in the backend. Rehearsed a bit alone and then discussed with the team what order we will go in for the final presenting. 
+
+# 2026-04-29 - Final Demo
+Demo'd our project to the professor. We accurately showed all the features we intended to, including using the game order above, showing WiFi connections, chat/hint features, and reconnecting if connection goes out. Next step is to finalzie how we will do our Final Presentation. 
+
+# 2026-05-01 - Final Presentation
+Presented our Final Presentation to the professor, TA, and peer reviewers. Answered some questions about connectivitiy, physical design process/issues, and how our backend processes moves and validates board states. 
+
+# 2026-05-02 - Final Video
+Discussed what should be included and in what order for the final video. Teammates then recorded themselves playing games against each other at their apartments and a voice recording was made explaining the game and moves as they were being made. Submitted this video.
+
+# 2026-05-04 - Awards Ceremony
+Selected as an Honorable Mention! Attended awards ceremony in ECEB and picked up our certificate. 
