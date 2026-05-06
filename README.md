@@ -350,5 +350,3 @@ README.md            ← This file
 **Prototype sketches** (`prototypes/`) are independent `.ino` files used during development to validate individual subsystems (ADC driver, display, hall sensor, WiFi). They are not part of the production build in `ChessBoard/`.
 
 **API documentation** is maintained in [`backend/api.md`](backend/api.md). The backend source is [`backend/api.py`](backend/api.py) (AWS Lambda + DynamoDB).
-
-**System diagram** source is at [`docs/diagrams/ChessBoard.drawio`](docs/diagrams/ChessBoard.drawio) (open with [draw.io](https://app.diagrams.net/)).
