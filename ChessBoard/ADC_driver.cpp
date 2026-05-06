@@ -4,7 +4,6 @@
 #define NUM_ADCS 8
 #define ADC_BASE_ADDR 0x10 // ADS7128 chips addressed 0x10 .. 0x17
 
-#define CMD_REG_READ 0x10
 #define CMD_REG_WRITE 0x08
 
 #define THRESHOLD 300
@@ -50,12 +49,6 @@ uint16_t readRawChannel(uint8_t chip, uint8_t ch)
     if (chip >= NUM_ADCS)
         return 0xFFFF;
     return readChannel(ADC_BASE_ADDR + chip, ch & 0x0F);
-}
-
-// Returns the fixed baseline (2048 = mid-scale of the 12-bit ADC).
-uint16_t getBaseline(uint8_t chip, uint8_t ch)
-{
-    return baseline;
 }
 
 // ---- public API -------------------------------------------------------

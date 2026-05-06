@@ -9,9 +9,6 @@ struct ApiResult
     String data;
 };
 
-// Fetch the latest FEN from the server (GET most recent move).
-ApiResult fetchLatestFEN();
-
 // Fetch the current game state: board FEN, whose turn it is, server version,
 // and which color this board is assigned.
 // Sends this board's MAC address so the server can return the correct color.
@@ -34,9 +31,6 @@ struct GameStateResult
     String gameResult; // "" | "white_timeout" | "black_timeout"
 };
 GameStateResult fetchGameState();
-
-// Post a move as FEN + move notation (legacy simple endpoint).
-ApiResult pushLatestFEN(const String &move, const String &fen);
 
 // Post a move to the server.
 //   fen             — board-only FEN after the move

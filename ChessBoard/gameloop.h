@@ -68,7 +68,6 @@ void cgm_resetManager();                     // Reset FSM back to idle (call bef
 void cgm_requestNewGame();                   // Request restart from the GAME_END state
 void cgm_confirmPendingMove();               // Confirm the move currently awaiting approval
 void cgm_cancelPendingMove();                // Cancel/undo the move awaiting approval
-void cgm_setPromotionPiece(char piece);      // Set promotion piece (default 'Q')
 void cgm_selectPromotionPiece(char piece);   // Called by touch handler to pick a promotion piece
 
 // Load an arbitrary FEN as the committed position and enter local-turn wait.

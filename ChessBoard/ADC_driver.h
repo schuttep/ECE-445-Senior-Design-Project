@@ -28,9 +28,6 @@ ADCTestResult testADCs();
 // Returns raw 12-bit value, or 0xFFFF on error.
 uint16_t readRawChannel(uint8_t chip, uint8_t ch);
 
-// Returns the fixed baseline (2048 = mid-scale of the 12-bit ADC).
-uint16_t getBaseline(uint8_t chip, uint8_t ch);
-
 // Physical column (0=file a .. 7=file h) to ADC chip index mapping.
 // Accounts for the non-sequential wiring of 0x14/0x15 and 0x16/0x17.
 extern const uint8_t ADC_COL_TO_CHIP[8];

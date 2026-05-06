@@ -5,7 +5,6 @@
 
 #include "headers.h"
 #include "display_driver.h"
-#include "wifi_driver.h"
 #include "api_connect.h"
 #include "ADC_driver.h"
 #include "wifi_manager.h"
@@ -139,7 +138,6 @@ void showEdgeCaseMenuScreen();
 void handleEdgeCaseTouch(int tx, int ty);
 void showTimerModeScreen();
 void showAiModeScreen();
-static void waitForTap();
 
 // Returns true and sets outMode if (tx, ty) falls within one of the three
 // timer-mode buttons.  Shared by TIMER_MODE_SELECT and AI_MODE_SELECT handlers.
@@ -261,28 +259,6 @@ void showWifiPassScreen(const char *ssid)
 
 // ===================== TOUCH HANDLING =====================
 static bool lastTouched = false;
-
-static void waitForTap()
-{
-  // Drain any current touch for 300 ms, yielding so RTOS tasks keep running.
-  unsigned long deadline = millis() + 300;
-  while (millis() < deadline)
-  {
-    touch.scan();
-    yield();
-  }
-  // Wait for a new tap (yield each iteration to allow WiFi keepalive etc.).
-  do
-  {
-    touch.scan();
-    yield();
-  } while (touch._pNum == 0);
-  // Post-tap debounce.
-  deadline = millis() + 200;
-  while (millis() < deadline)
-    yield();
-  lastTouched = true; // prevent immediate double-trigger
-}
 
 void handleWifiListTouch(int tx, int ty)
 {
@@ -743,7 +719,7 @@ void setup()
 
   drawConnectingScreen(WIFI_SSID);
   // Connect using secrets.h credentials directly
-  wifiConnected = connectWifi();
+  wifiConnected = wmConnect(WIFI_SSID, WIFI_PASS);
   // If that fails let the user pick a network
   if (!wifiConnected)
   {

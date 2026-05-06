@@ -78,11 +78,6 @@ void cgm_requestNewGame()
     cgm_newGameRequested = true;
 }
 
-void cgm_setPromotionPiece(char piece)
-{
-    cgm_requestedPromotion = piece;
-}
-
 // Called by the touch handler when the player taps a promotion-picker button.
 void cgm_selectPromotionPiece(char piece)
 {
@@ -133,21 +128,6 @@ void cgm_resetCastle(bool rights[4])
     rights[1] = true;
     rights[2] = true;
     rights[3] = true;
-}
-
-bool cgm_sameBoard(char a[8][8], char b[8][8])
-{
-    for (int r = 0; r < 8; r++)
-    {
-        for (int c = 0; c < 8; c++)
-        {
-            if (a[r][c] != b[r][c])
-            {
-                return false;
-            }
-        }
-    }
-    return true;
 }
 
 // Recomputes castling rights by looking only at board state.
@@ -781,20 +761,6 @@ void cgm_uiMessage(const String &line1, const String &line2 = "")
     displayStatusBar(msg.c_str(), COLOR_RGB565_BLUE);
 }
 
-void cgm_ledClear()
-{
-    // LEDs no longer used — no-op.
-}
-
-void cgm_ledShowMoveSquares(const String &beforeFEN, const String &afterFEN)
-{
-    // LEDs no longer used.
-    // Move squares are shown on the display by ChessBoard.ino via
-    // drawGameScreenWithMove() whenever the committed / pending FEN changes.
-    (void)beforeFEN;
-    (void)afterFEN;
-}
-
 // ============================================================
 // Networking helpers  (delegate to api_connect / wifi_manager)
 // ============================================================
@@ -835,17 +801,6 @@ bool cgm_sendFenToServer(const String &fen, const String &move, int expectedVers
 {
     ApiResult r = pushFENState(fen, move, expectedVersion);
     return r.ok;
-}
-
-bool cgm_fetchLatestFenFromServer(String &latestFen)
-{
-    ApiResult r = fetchLatestFEN();
-    if (r.ok)
-    {
-        latestFen = r.data;
-        return true;
-    }
-    return false;
 }
 
 // ============================================================
@@ -1054,7 +1009,6 @@ void cgm_finishGame(CGMGameResult result)
     cgm.result = result;
     cgm.gameActive = false;
     cgm.state = CGM_GAME_END;
-    cgm_ledClear();
     // Full game-over screen is drawn by ChessBoard.ino on the next tick
     // (it detects cgm_isGameOver() == true).
     Serial0.print("[FSM] Game over: ");
@@ -1370,7 +1324,6 @@ void cgm_handleLocalTurnValidate()
     }
 
     cgm_uiMessage("Move valid", "Confirm on touchscreen");
-    cgm_ledShowMoveSquares(cgm.committedFEN, validated);
     // Update pendingFEN with the validated result — important for promotions
     // where the pawn must be replaced with the chosen piece before sending.
     cgm.pendingFEN = validated;
@@ -1385,7 +1338,6 @@ void cgm_handleLocalTurnConfirm()
         cgm_uiMessage("Move cancelled", "Restore board and try again");
         cgm_beginWaitingForStableBoard();
         cgm.pendingFEN = "";
-        cgm_ledClear();
         cgm_setState(CGM_LOCAL_TURN_WAIT_FOR_BOARD);
         return;
     }
@@ -1447,7 +1399,6 @@ void cgm_handleSendState()
 
     cgm.committedFEN = cgm.pendingFEN;
     cgm.pendingFEN = "";
-    cgm_ledClear();
 
     // Mark the first move as made so timers can start counting
     if (!cgm.timerFirstMoveMade)
@@ -1552,7 +1503,6 @@ void cgm_handleApplyRemoteMove()
         return;
     }
 
-    cgm_ledShowMoveSquares(cgm.committedFEN, cgm.remoteIncomingFEN);
     cgm_uiMessage("Opponent move received", "Replicate move on physical board");
 
     // Wait until the physical board matches the expected physical representation
@@ -1569,7 +1519,6 @@ void cgm_handleApplyRemoteMove()
 
     cgm.committedFEN = cgm.remoteIncomingFEN;
     cgm.remoteIncomingFEN = "";
-    cgm_ledClear();
 
     // Mark first move made (remote move counts too)
     if (!cgm.timerFirstMoveMade)

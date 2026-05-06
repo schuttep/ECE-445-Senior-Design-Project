@@ -608,7 +608,6 @@ bool hasAnyLegalMove(char board[8][8], bool whiteToMove, const bool castling[4],
         {
             char movingPawn = whiteToMove ? 'P' : 'p';
             int srcRow = whiteToMove ? epRow + 1 : epRow - 1;
-            int capRow = whiteToMove ? epRow + 1 : epRow - 1;
             // Try both adjacent files
             for (int dc = -1; dc <= 1; dc += 2)
             {
@@ -619,12 +618,12 @@ bool hasAnyLegalMove(char board[8][8], bool whiteToMove, const bool castling[4],
                     continue;
                 // Verify the captured pawn is on the correct square
                 char oppPawn = whiteToMove ? 'p' : 'P';
-                if (board[capRow][epCol] != oppPawn)
+                if (board[srcRow][epCol] != oppPawn)
                     continue;
                 // Apply the en passant and check for self-check
                 copyBoard(board, testBoard);
                 testBoard[srcRow][srcCol] = '.';
-                testBoard[capRow][epCol] = '.';
+                testBoard[srcRow][epCol] = '.';
                 testBoard[epRow][epCol] = movingPawn;
                 if (!isKingInCheck(testBoard, whiteToMove))
                     return true;
