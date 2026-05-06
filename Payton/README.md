@@ -1,8 +1,3 @@
-<<<<<<< HEAD
-# Payton's Worklog
-
-=======
->>>>>>> 85bbf567e47853233fa96abe621798e323e1fbbd
 # 2026-01-21 - First Group Meeting
 Met with Quinn and Danny for the first time to brainstorm project ideas. We each came up with one to post to the web board. I suggested two physical chess boards that could play each other over the internet, Quinn suggested a universal game board using an E-ink display, and Danny suggested an auto dealer poker machine. We liked the chess board idea the most because it felt achievable and genuinely interesting to build. The core appeal was that it was a real physical object that two people would interact with, not just a screen. We posted all three ideas to get feedback from course staff before committing to anything.
 
