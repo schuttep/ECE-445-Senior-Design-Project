@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-![Both Game Boards](Quinn/Both_Game_Boards.jpg)
+![Both Game Boards](notebooks/Quinn/Both_Game_Boards.jpg)
 
 This project proposes a networked physical chessboard hardware platform designed to support customizable software experiences built around real-world chess interaction. The system enables remote players to play chess using physical pieces while maintaining board synchronization through wireless communication and magnetic piece detection. This document explores the problem being solved and the approach Group 51 is taking to develop a flexible hardware foundation for future software expansion. Furthermore, the requirements and designs used to meet those requirements for each subsystem are presented. The compatibility and accuracy of the sensors and analog-to-digital converters are validated through basic calculations and engineering analysis. Finally, the ethical considerations and societal impact of the project are discussed.
 
@@ -40,7 +40,7 @@ Group 51 designed and built a pair of networked physical chessboards, each built
 
 | | |
 |---|---|
-| ![Assembled Board and Pieces](Danny/assembled_board_and_pieces.png) | ![Full Board Assembled](Danny/full_board_assembled.png) |
+| ![Assembled Board and Pieces](notebooks/Danny/assembled_board_and_pieces.png) | ![Full Board Assembled](notebooks/Danny/full_board_assembled.png) |
 
 Key software features include:
 - Full chess rule validation (castling, en passant, promotion, check, checkmate, stalemate) running entirely on the microcontroller.
@@ -82,7 +82,7 @@ Key software features include:
 └──────────────────────────────────────────────────────────┘
 ```
 
-![System Block Diagram](Quinn/Updated_Block_Diagram.png)
+![System Block Diagram](notebooks/Quinn/Updated_Block_Diagram.png)
 
 ---
 
@@ -135,7 +135,7 @@ The `localIsWhite` flag mirrors the entire board reading when the local player i
 
 | Game Piece with Magnet | Magnet Installation | Hall-Effect Sensor Prototype | ADC Testing Setup |
 |---|---|---|---|
-| ![Game Piece](Quinn/Game_Piece.jpeg) | ![Magnets in Pieces](Danny/magnets_fit_into_pieces.png) | ![Hall Effect Sensors on Breadboard](Danny/hall_effect_sensors_on_breadboard.png) | ![ADC Testing Setup](Danny/adc_testing_setup.png) |
+| ![Game Piece](notebooks/Quinn/Game_Piece.jpeg) | ![Magnets in Pieces](notebooks/Danny/magnets_fit_into_pieces.png) | ![Hall Effect Sensors on Breadboard](notebooks/Danny/hall_effect_sensors_on_breadboard.png) | ![ADC Testing Setup](notebooks/Danny/adc_testing_setup.png) |
 
 ---
 
@@ -163,7 +163,7 @@ A per-square dirty-cache system (`s_dirtyCells`, 64-bit bitfield) ensures only c
 | `AI_MODE_SELECT` | Select Easy / Medium / Hard Stockfish difficulty |
 | `BOARD_TEST` | Raw sensor value display for hardware validation |
 
-![Touch Display UI](Quinn/TouchDisplay.png)
+![Touch Display UI](notebooks/Quinn/TouchDisplay.png)
 
 ---
 
@@ -216,7 +216,7 @@ The Amazon Root CA 1 TLS certificate is embedded directly in firmware (valid unt
 
 | Working Single Board Game | Mock Demo |
 |---|---|
-| ![Working Single Board Game](Danny/working_single_board_game.png) | ![Mock Demo](Danny/mock_demo.png) |
+| ![Working Single Board Game](notebooks/Danny/working_single_board_game.png) | ![Mock Demo](notebooks/Danny/mock_demo.png) |
 
 ---
 
@@ -234,19 +234,19 @@ A small per-square PCB carrying one Hall-effect sensor. 64 tiles tile together t
 
 | 3D View | PCB Routing | Assembled & Soldered |
 |---|---|---|
-| ![Main PCB 3D View](Quinn/MainPCB_3d_View.png) | ![Main PCB Routing](Quinn/MainPCB_Routing.png) | ![Main PCB Soldered](Quinn/MainPCB_soldered.jpeg) |
+| ![Main PCB 3D View](notebooks/Quinn/MainPCB_3d_View.png) | ![Main PCB Routing](notebooks/Quinn/MainPCB_Routing.png) | ![Main PCB Soldered](notebooks/Quinn/MainPCB_soldered.jpeg) |
 
 **Tile PCB:**
 
 | 3D View (Front) | 3D View (Back) | PCB Routing | Soldered | Wiring |
 |---|---|---|---|---|
-| ![Tile PCB 3D Front](Quinn/TilePCB_3d_View_Front.png) | ![Tile PCB 3D Back](Quinn/TilPCB_3d_View_Back.png) | ![Tile PCB Routing](Quinn/TilePCB_Routing.png) | ![Tile PCB Soldered](Quinn/TilePCB_soldered.jpeg) | ![Tile PCB Wiring](Quinn/TilePCB_Wiring.jpeg) |
+| ![Tile PCB 3D Front](notebooks/Quinn/TilePCB_3d_View_Front.png) | ![Tile PCB 3D Back](notebooks/Quinn/TilPCB_3d_View_Back.png) | ![Tile PCB Routing](notebooks/Quinn/TilePCB_Routing.png) | ![Tile PCB Soldered](notebooks/Quinn/TilePCB_soldered.jpeg) | ![Tile PCB Wiring](notebooks/Quinn/TilePCB_Wiring.jpeg) |
 
 **3D-Printed Enclosure** (Fusion 360 source files and STLs in `Enclosure/`):
 
 | Baseplate Corner | Baseplate Edge | Display Support | Tile PCB Support | Main Board Support |
 |---|---|---|---|---|
-| ![Baseplate Corner](Quinn/Baseplate_Corner.png) | ![Baseplate Edge](Quinn/Baseplate_Edge.png) | ![Display Support](Quinn/Display_Support.png) | ![Tile PCB Support](Quinn/TilePCB_Support.png) | ![Main Board Support](Quinn/MainPCB_support.png) |
+| ![Baseplate Corner](notebooks/Quinn/Baseplate_Corner.png) | ![Baseplate Edge](notebooks/Quinn/Baseplate_Edge.png) | ![Display Support](notebooks/Quinn/Display_Support.png) | ![Tile PCB Support](notebooks/Quinn/TilePCB_Support.png) | ![Main Board Support](notebooks/Quinn/MainPCB_support.png) |
 
 ---
 
@@ -254,11 +254,11 @@ A small per-square PCB carrying one Hall-effect sensor. 64 tiles tile together t
 
 | Reflow Soldering Main PCB | Soldering Tile PCBs | Quarter Board Assembled | Full Board Assembled |
 |---|---|---|---|
-| ![Reflow Soldering Main PCB](Danny/reflow_soldering_main_pcb.png) | ![Soldering Tile PCBs](Danny/soldering_tile_pcbs.png) | ![Quarter of Board Assembled](Danny/quarter_of_board_assembled.png) | ![Full Board Assembled](full_board_assembled.png) |
+| ![Reflow Soldering Main PCB](notebooks/Danny/reflow_soldering_main_pcb.png) | ![Soldering Tile PCBs](notebooks/Danny/soldering_tile_pcbs.png) | ![Quarter of Board Assembled](notebooks/Danny/quarter_of_board_assembled.png) | ![Full Board Assembled](notebooks/Payton/full_board_assembled.png) |
 
 | First Completed Board | Second Completed Board |
 |---|---|
-| ![First Game Board](Quinn/First_Game_Board.JPEG) | ![Second Game Board](Quinn/Second_Game_Board.jpeg) |
+| ![First Game Board](notebooks/Quinn/First_Game_Board.JPEG) | ![Second Game Board](notebooks/Quinn/Second_Game_Board.jpeg) |
 
 ---
 
