@@ -312,7 +312,9 @@ This file must be created manually before building. See [Project Setup](#project
 
 Base URL: `https://j3zvk9adv0.execute-api.us-east-2.amazonaws.com/api/v1/games/1`
 
-The Python backend (`api.py`, located in the parent `ECE-445-Senior-Design-Project/` folder) defines the Lambda handler and DynamoDB schema. Game state is a single record keyed by game ID. Boards identify themselves by MAC address; the server assigns white to the first board that calls `/reset` and black to the second board that registers.
+Full endpoint reference: [`backend/api.md`](../backend/api.md)
+
+The Python backend (`backend/api.py`, located in the parent `ECE-445-Senior-Design-Project/` folder) defines the Lambda handler and DynamoDB schema. Game state is a single record keyed by game ID. Boards identify themselves by MAC address; the server assigns white to the first board that calls `/reset` and black to the second board that registers.
 
 The server does **not** run chess clocks — it only stores the timer mode and initial budget. Both boards track remaining time independently and call `/timeout` when their own clock expires.
 

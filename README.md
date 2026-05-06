@@ -24,6 +24,7 @@ This project proposes a networked physical chessboard hardware platform designed
 6. [Engineering Analysis](#engineering-analysis)
 7. [Ethical Considerations & Societal Impact](#ethical-considerations--societal-impact)
 8. [Team Members](#team-members)
+9. [Repository Structure](#repository-structure)
 
 ---
 
@@ -322,15 +323,32 @@ The server uses a version counter to prevent conflicting move submissions. If bo
 
 ---
 
-## Team Members
-
-| Name | Area of Responsibility |
-|---|---|
-| Payton | Firmware, game logic, FSM, API integration |
-| Danny | PCB design, Hall-effect sensor array, ADC driver |
-| Quinn | Display driver, touchscreen UI, enclosure design |
+*ECE 445 — Senior Design Laboratory, University of Illinois Urbana-Champaign*  
+*Group 51 — Spring 2026*
 
 ---
 
-*ECE 445 — Senior Design Laboratory, University of Illinois Urbana-Champaign*  
-*Group 51 — Spring 2026*
+## Repository Structure
+
+```
+ChessBoard/          ← Production firmware (ESP32-S3 Arduino sketch)
+ECE-445-PCBs/        ← KiCad PCB design files + Gerbers
+Enclosure/           ← Fusion 360 source files + STLs
+prototypes/          ← Early-stage / exploratory sketches (non-production)
+backend/
+  api.py               ← AWS Lambda handler (backend)
+  api.md               ← Full REST API endpoint reference
+docs/
+  diagrams/
+    ChessBoard.drawio  ← System block diagram (editable)
+Danny/               ← Build photos and design notes
+Quinn/               ← Build photos, PCB renders, enclosure renders
+Payton/              ← Design notes
+README.md            ← This file
+```
+
+**Prototype sketches** (`prototypes/`) are independent `.ino` files used during development to validate individual subsystems (ADC driver, display, hall sensor, WiFi). They are not part of the production build in `ChessBoard/`.
+
+**API documentation** is maintained in [`backend/api.md`](backend/api.md). The backend source is [`backend/api.py`](backend/api.py) (AWS Lambda + DynamoDB).
+
+**System diagram** source is at [`docs/diagrams/ChessBoard.drawio`](docs/diagrams/ChessBoard.drawio) (open with [draw.io](https://app.diagrams.net/)).
