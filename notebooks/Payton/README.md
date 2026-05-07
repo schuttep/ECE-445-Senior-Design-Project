@@ -1,4 +1,4 @@
-﻿# Engineering Notebook — Payton Herrington
+# Engineering Notebook — Payton Schutte
 **ECE 445 Senior Design Laboratory**
 **University of Illinois Urbana-Champaign — Spring 2026**
 **Project:** Networked Physical Chess Board for Remote Play (Group 51)
