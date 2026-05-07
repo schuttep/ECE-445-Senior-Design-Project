@@ -178,6 +178,10 @@ After fixes, the ADC responded correctly on the bus and all 8 channels returned 
 
 **Fig. 2** — Breadboard test setup showing 8 Hall effect sensors, ADS7128 breakout, ESP32 dev board. *(See `../Danny/hall_effect_sensors_on_breadboard.png` and `../Danny/connected_breadboards_for_esp32_testing.png`)*
 
+![Breadboard with Hall effect sensors, ADS7128 breakout, and ESP32 dev board](breadboard_hall_sensor_setup_1.jpeg)
+
+![Second view of breadboard Hall effect sensor test setup](breadboard_hall_sensor_setup_2.jpeg)
+
 ---
 
 ## Entry 10 — 2026-03-05: Breadboard Demo Planning
@@ -198,6 +202,8 @@ Assigned tasks for Spring Break:
 - **Quinn:** Display driver initial code, tile PCB layout
 
 Success criteria for Spring Break: PCB files ready to send to fab, display initialization working on dev board.
+
+![Breadboard demo preparation setup](breadboard_demo_prep.jpeg)
 
 ---
 
@@ -239,6 +245,8 @@ Post-reflow inspection checklist:
 This marked the transition from prototype to production hardware. From this point forward all firmware development targeted the custom PCB.
 
 **Fig. 3** — Main PCB reflow soldering setup. *(See `../Danny/reflow_soldering_main_pcb.png`)*
+
+[main_pcb_reflow_bringup_1.dng](main_pcb_reflow_bringup_1.dng) — Main PCB after reflow, photograph 1 (RAW)
 
 ---
 
@@ -285,6 +293,8 @@ Designed a two-layer network architecture to keep transport details out of the g
 This confirmed the PCB layout, routing, and component placement had translated correctly from the breadboard prototype. The custom I2C pin assignment (`Wire1` on GPIO 38/39) became a permanent fixture of the hardware abstraction.
 
 **Additional discussion:** Agreed to use individual tile PCBs (designed by Quinn) to mount Hall effect sensors under each square. Preferred over flexible ribbon cables or point-to-point wiring for consistent sensor orientation and a clean mechanical interface.
+
+[main_pcb_reflow_bringup_2.dng](main_pcb_reflow_bringup_2.dng) — Main PCB during early firmware bringup, photograph 2 (RAW)
 
 ---
 
@@ -358,6 +368,10 @@ This exceeded the acceptable loop latency for touch response. Solution: a 64-bit
 
 **References:** ST7365P MADCTL register [R3], GT911 coordinate system [R5].
 
+![Display UI screenshot 1 — game screen](display_ui_screenshot_1.png)
+
+![Display UI screenshot 2 — game screen](display_ui_screenshot_2.png)
+
 ---
 
 ## Entry 18 — 2026-04-10: Tile PCB Soldering
@@ -378,6 +392,10 @@ Assembly process per tile:
 At this scale (64 repetitions of the same task), procedural consistency matters more than individual skill. Used the tile support print as an assembly jig to hold each PCB at the correct angle during soldering.
 
 **Fig. 4** — Tile PCB assembly. *(See `../notebooks/Quinn/TilePCB_soldered.jpeg` and `../notebooks/Quinn/TilePCB_assembly.jpeg`)*
+
+[board_tiles_partial_assembly_1.dng](board_tiles_partial_assembly_1.dng) — Board with tiles partially installed, photograph 1 (RAW)
+
+![Board with tiles partially installed — photograph 2](board_tiles_partial_assembly_2.jpeg)
 
 ---
 
@@ -500,6 +518,8 @@ WAIT_FOR_GAME_START
 
 **References:** FEN notation standard [R8].
 
+![Full system integration test — board and display running together](full_system_integration_1.jpeg)
+
 ---
 
 ## Entry 22 — 2026-04-22: Physical-to-Logical FEN Translation
@@ -527,6 +547,12 @@ WAIT_FOR_GAME_START
 | Promotion | Pawn disappears from 7th rank, piece appears on 8th rank | FSM enters `LOCAL_TURN_PROMOTION`; piece type from touchscreen picker |
 
 **Design Decision:** The algorithm is inherently stateful — it is always a diff operation against the last known valid logical state. It cannot work from a single snapshot alone.
+
+![Full system integration test — photograph 2](full_system_integration_2.jpeg)
+
+![Full system integration test — photograph 3](full_system_integration_3.jpeg)
+
+![Full system integration test — photograph 4](full_system_integration_4.jpeg)
 
 ---
 
@@ -790,6 +816,8 @@ Additional questions received:
 **Record:**
 
 The project received an **Honorable Mention** at the ECE 445 awards ceremony held in ECEB. Attended with Quinn and Danny; certificates collected.
+
+![ECE 445 awards ceremony — honorable mention](awards_ceremony.jpeg)
 
 ---
 
